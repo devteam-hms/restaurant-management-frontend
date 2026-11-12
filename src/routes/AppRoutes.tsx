@@ -10,6 +10,9 @@ import { LandingPage } from '@/pages/public/LandingPage';
 import { RestaurantsExplorePage } from '@/pages/public/RestaurantsExplorePage';
 import { RestaurantDetailPage } from '@/pages/public/RestaurantDetailPage';
 import { RoleSelectionLoginPage } from '@/pages/auth/RoleSelectionLoginPage';
+import { RegisterSelectionPage } from '@/pages/auth/RegisterSelectionPage';
+import { CustomerRegisterPage } from '@/pages/auth/CustomerRegisterPage';
+import { OwnerRegisterPage } from '@/pages/auth/OwnerRegisterPage';
 
 // Customer Pages
 import { CustomerOverviewPage } from '@/pages/customer/CustomerOverviewPage';
@@ -42,6 +45,9 @@ export const AppRoutes: React.FC = () => {
 
       {/* Standalone Auth */}
       <Route path="/login" element={<RoleSelectionLoginPage />} />
+      <Route path="/register" element={<RegisterSelectionPage />} />
+      <Route path="/register/customer" element={<CustomerRegisterPage />} />
+      <Route path="/register/owner" element={<OwnerRegisterPage />} />
 
       {/* Customer Portal (Protected) */}
       <Route

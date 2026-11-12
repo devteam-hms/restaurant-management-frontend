@@ -8,6 +8,7 @@ import { RestaurantItem } from '@/types/restaurant';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Input } from '@/components/common/Input';
 import { useToast } from '@/context/ToastContext';
 
@@ -163,11 +164,10 @@ export const AdminBranchesPage: React.FC = () => {
         <div className="flex items-center gap-3 overflow-x-auto pb-2">
           <button
             onClick={() => setSelectedRestaurantId('')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all ${
-              selectedRestaurantId === ''
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all ${selectedRestaurantId === ''
                 ? 'bg-primary text-background font-semibold shadow-gold-glow'
                 : 'bg-surface text-muted hover:text-foreground border border-border'
-            }`}
+              }`}
           >
             All Brands ({restaurants.length})
           </button>
@@ -175,11 +175,10 @@ export const AdminBranchesPage: React.FC = () => {
             <button
               key={r.restaurant_id}
               onClick={() => setSelectedRestaurantId(r.restaurant_id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all whitespace-nowrap ${
-                selectedRestaurantId === r.restaurant_id
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all whitespace-nowrap ${selectedRestaurantId === r.restaurant_id
                   ? 'bg-primary text-background font-semibold shadow-gold-glow'
                   : 'bg-surface text-muted hover:text-foreground border border-border'
-              }`}
+                }`}
             >
               {r.restaurant_name}
             </button>
@@ -361,28 +360,16 @@ export const AdminBranchesPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
+        {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
         isOpen={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
         title="Delete Branch"
-        subtitle="Confirm branch removal"
-        maxWidth="md"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-muted leading-relaxed">
-            Deleting this branch will remove its active booking slot availability. Ensure no live orders are pending.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setDeleteConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Confirm Delete
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      description="Deleting this branch will remove its active booking slot availability. Ensure no live orders are pending."
+      confirmText="Confirm Delete"
+      variant="danger"
+      />
     </div>
   );
 };

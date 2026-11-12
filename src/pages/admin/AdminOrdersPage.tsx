@@ -8,6 +8,7 @@ import { BranchItem } from '@/types/branch';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Input } from '@/components/common/Input';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/common/Badge';
 import { useToast } from '@/context/ToastContext';
@@ -27,6 +28,7 @@ export const AdminOrdersPage: React.FC = () => {
   const [newStatus, setNewStatus] = useState<OrderStatus>('CONFIRMED');
   const [newPaymentStatus, setNewPaymentStatus] = useState<PaymentStatus>('PAID');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   const { success, error: toastError } = useToast();
 
@@ -56,6 +58,15 @@ export const AdminOrdersPage: React.FC = () => {
   const handleUpdateStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!statusUpdateOrder) return;
+    if (newStatus === 'CANCELLED' && statusUpdateOrder.order_status !== 'CANCELLED') {
+      setConfirmCancelOpen(true);
+      return;
+    }
+    await executeStatusUpdate();
+  };
+
+  const executeStatusUpdate = async () => {
+    if (!statusUpdateOrder) return;
     setIsUpdating(true);
     try {
       await orderService.updateOrder(statusUpdateOrder.id, {
@@ -64,6 +75,7 @@ export const AdminOrdersPage: React.FC = () => {
       });
       success('Order Updated', `Order #${statusUpdateOrder.id} status changed to ${newStatus}.`);
       setStatusUpdateOrder(null);
+      setConfirmCancelOpen(false);
       loadData();
     } catch (e: any) {
       toastError('Update Failed', e.message);
@@ -374,6 +386,18 @@ export const AdminOrdersPage: React.FC = () => {
           </form>
         </Modal>
       )}
+
+      {/* Confirm Order Cancellation */}
+      <ConfirmDialog
+        isOpen={confirmCancelOpen}
+        onClose={() => setConfirmCancelOpen(false)}
+        onConfirm={executeStatusUpdate}
+        title="Cancel Order"
+        description={`Are you sure you want to cancel Order #${statusUpdateOrder?.id}? This will notify the kitchen brigade and stop table preparation.`}
+        confirmText="Confirm Cancellation"
+        variant="danger"
+        isLoading={isUpdating}
+      />
     </div>
   );
 };

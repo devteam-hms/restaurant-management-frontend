@@ -6,6 +6,7 @@ import { RestaurantItem } from '@/types/restaurant';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Input } from '@/components/common/Input';
 import { useToast } from '@/context/ToastContext';
 
@@ -271,28 +272,16 @@ export const AdminRestaurantsPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
+        {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
         isOpen={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
         title="Delete Restaurant Concept"
-        subtitle="Confirm deletion of restaurant record"
-        maxWidth="md"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-muted leading-relaxed">
-            Deleting this restaurant requires that all dependent branch locations and menus are removed first in accordance with backend data integrity checks.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setDeleteConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Confirm Delete
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      description="Deleting this restaurant requires that all dependent branch locations and menus are removed first in accordance with backend data integrity checks."
+      confirmText="Confirm Delete"
+      variant="danger"
+      />
     </div>
   );
 };

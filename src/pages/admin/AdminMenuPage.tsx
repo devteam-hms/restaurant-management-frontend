@@ -7,6 +7,7 @@ import { BranchItem } from '@/types/branch';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Input } from '@/components/common/Input';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency } from '@/lib/utils';
@@ -193,11 +194,10 @@ export const AdminMenuPage: React.FC = () => {
             <button
               key={b.branch_id}
               onClick={() => handleBranchSelect(b.branch_id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs transition-colors ${
-                selectedBranchId === b.branch_id
+              className={`px-3.5 py-1.5 rounded-lg text-xs transition-colors ${selectedBranchId === b.branch_id
                   ? 'bg-primary/20 text-primary border border-primary/50 font-semibold shadow-sm'
                   : 'text-muted hover:text-foreground bg-surface-secondary border border-border/60'
-              }`}
+                }`}
             >
               {b.branch_name} ({b.city})
             </button>
@@ -266,11 +266,10 @@ export const AdminMenuPage: React.FC = () => {
                     <td className="px-6 py-4">
                       <button
                         onClick={() => toggleItemStatus(item)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                          item.status === 1
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${item.status === 1
                             ? 'bg-success/15 text-success border border-success/30 hover:bg-success/25'
                             : 'bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25'
-                        }`}
+                          }`}
                       >
                         {item.status === 1 ? (
                           <>
@@ -435,28 +434,16 @@ export const AdminMenuPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
+        {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
         isOpen={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
         title="Remove Menu Course"
-        subtitle="Confirm removal of course from branch menu"
-        maxWidth="md"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-muted leading-relaxed">
-            This course will be permanently removed from this branch. Active orders will not be affected.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setDeleteConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Confirm Delete
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      description="This course will be permanently removed from this branch. Active orders will not be affected."
+      confirmText="Confirm Delete"
+      variant="danger"
+      />
     </div>
   );
 };

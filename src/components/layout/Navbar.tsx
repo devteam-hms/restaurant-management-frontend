@@ -49,11 +49,10 @@ export const Navbar: React.FC = () => {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-        isScrolled
+      className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${isScrolled
           ? 'bg-background/90 backdrop-blur-md border-b border-border/80 shadow-luxury py-3'
           : 'bg-gradient-to-b from-background/90 to-transparent py-5'
-      }`}
+        }`}
     >
       <div className="max-w-7xl mx-auto px-6 sm:px-8 flex items-center justify-between">
         {/* Brand Wordmark */}
@@ -77,9 +76,8 @@ export const Navbar: React.FC = () => {
             <Link
               key={link.label}
               to={link.path}
-              className={`text-xs uppercase tracking-[0.2em] font-medium transition-colors hover:text-primary ${
-                location.pathname === link.path ? 'text-primary' : 'text-foreground/80'
-              }`}
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-colors hover:text-primary ${location.pathname === link.path ? 'text-primary' : 'text-foreground/80'
+                }`}
             >
               {link.label}
             </Link>
@@ -173,101 +171,117 @@ export const Navbar: React.FC = () => {
               </AnimatePresence>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <Link to="/login">
-                <Button variant="ghost" size="sm">
-                  Sign In
-                </Button>
-              </Link>
-              <Link to="/explore">
-                <Button variant="primary" size="sm">
-                  Reserve a Table
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile Hamburger Button */}
-        <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle size="sm" />
-          <Link to="/customer/cart" className="relative p-2 text-foreground/80" aria-label="Cart">
-            <ShoppingBag className="w-5 h-5" />
-            {totalCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-primary text-background font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
-                {totalCount}
-              </span>
-            )}
-          </Link>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-foreground hover:text-primary transition-colors"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6 text-primary" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Drawer Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-surface/95 backdrop-blur-xl border-b border-border px-6 py-6 space-y-4"
-          >
-            <nav className="flex flex-col gap-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.label}
-                  to={link.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="text-sm uppercase tracking-widest text-foreground/90 hover:text-primary py-1"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="pt-4 border-t border-border flex flex-col gap-3">
-              {isAuthenticated ? (
-                <>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    className="w-full"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handlePortalRedirect();
-                    }}
-                  >
-                    Open Portal Dashboard
+              <div className="flex items-center gap-2.5">
+                <Link to="/login">
+                  <Button variant="ghost" size="sm">
+                    Sign In
                   </Button>
+                </Link>
+                <Link to="/register">
                   <Button
                     variant="outline"
-                    size="md"
-                    className="w-full text-danger"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      logout();
-                    }}
+                    size="sm"
+                    className="border-primary/50 text-primary hover:bg-primary/10"
                   >
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="primary" size="md" className="w-full">
-                    Sign In / Access Portal
+                    Register
                   </Button>
                 </Link>
-              )}
+                <Link to="/explore">
+                  <Button variant="primary" size="sm">
+                    Reserve a Table
+                  </Button>
+                </Link>
+              </div>
+          )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+        {/* Mobile Hamburger Button */}
+          <div className="flex items-center gap-2 md:hidden">
+            <ThemeToggle size="sm" />
+            <Link to="/customer/cart" className="relative p-2 text-foreground/80" aria-label="Cart">
+              <ShoppingBag className="w-5 h-5" />
+              {totalCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-background font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
+                  {totalCount}
+                </span>
+              )}
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-foreground hover:text-primary transition-colors"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6 text-primary" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Drawer Menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-surface/95 backdrop-blur-xl border-b border-border px-6 py-6 space-y-4"
+            >
+              <nav className="flex flex-col gap-4">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.label}
+                    to={link.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-sm uppercase tracking-widest text-foreground/90 hover:text-primary py-1"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
+
+              <div className="pt-4 border-t border-border flex flex-col gap-3">
+                {isAuthenticated ? (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      className="w-full"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        handlePortalRedirect();
+                      }}
+                    >
+                      Open Portal Dashboard
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      className="w-full text-danger"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                <div className="flex flex-col gap-2.5">
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" size="md" className="w-full">
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="primary" size="md" className="w-full">
+                      Register Account
+                    </Button>
+                  </Link>
+                </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </header>
   );
 };

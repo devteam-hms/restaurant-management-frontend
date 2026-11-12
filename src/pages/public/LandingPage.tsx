@@ -88,11 +88,11 @@ export const LandingPage: React.FC = () => {
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            <Link to="/login">
-              <Button size="lg" variant="gold-outline" className="w-full sm:w-auto px-8">
-                Get Started
-              </Button>
-            </Link>
+              <Link to="/register">
+                <Button size="lg" variant="gold-outline" className="w-full sm:w-auto px-8">
+                  Register Account
+                </Button>
+              </Link>
           </motion.div>
 
           {/* Awards & Heritage Accolade */}
@@ -182,7 +182,7 @@ export const LandingPage: React.FC = () => {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/20 to-transparent" />
-                  
+
                   {restaurant.rating && (
                     <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface/80 backdrop-blur-md border border-border text-xs text-primary font-medium">
                       <Star className="w-3.5 h-3.5 fill-primary text-primary" />

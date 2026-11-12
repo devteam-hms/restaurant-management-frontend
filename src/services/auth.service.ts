@@ -1,5 +1,12 @@
 import { apiClient, extractErrorMessage } from './api';
-import { LoginPayload, RefreshTokenPayload, TokenResponse, AuthUser } from '@/types/auth';
+import {
+  LoginPayload,
+  RefreshTokenPayload,
+  TokenResponse,
+  AuthUser,
+  TenantSignupPayload,
+  TenantSignupResponse,
+} from '@/types/auth';
 import { TokenStorage } from '@/lib/token-storage';
 import { INITIAL_CUSTOMERS, INITIAL_STAFF_USERS } from './mockData';
 
@@ -40,7 +47,7 @@ export const authService = {
    */
   demoLogin(payload: LoginPayload, selectedRoleType?: 'customer' | 'admin'): TokenResponse {
     const identifier = (payload.email || payload.username || '').toLowerCase();
-    
+
     // Check if logging in as Admin
     if (selectedRoleType === 'admin') {
       if (identifier.includes('customer')) {
@@ -122,6 +129,29 @@ export const authService = {
       }
     }
     return data;
+  },
+
+  /**
+   * Register a new restaurant tenant organization and initial owner account via POST /tenants/signup
+   */
+  async signupTenant(payload: TenantSignupPayload): Promise<TenantSignupResponse> {
+    try {
+      const response = await apiClient.post<TenantSignupResponse>('/tenants/signup', payload);
+      return response.data;
+    } catch (error: any) {
+      const isNetworkErr = error?.code === 'ERR_NETWORK' || !error.response;
+      if (isNetworkErr) {
+        // Interactive offline demo simulation
+        const mockTenantId = `tenant-${Date.now().toString(36)}`;
+        const mockUserId = `user-${Date.now().toString(36)}`;
+        return {
+          message: 'Tenant registration successful',
+          tenant_id: mockTenantId,
+          user_id: mockUserId,
+        };
+      }
+      throw new Error(extractErrorMessage(error));
+    }
   },
 
   /**

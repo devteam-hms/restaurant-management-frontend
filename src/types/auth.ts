@@ -32,3 +32,20 @@ export interface RefreshTokenPayload {
 
 export type UserTypeSelection = 'customer' | 'admin';
 
+export interface OwnerSignupPayload {
+  first_name: string;
+  last_name: string;
+  email: string;
+  password: string;
+}
+
+export interface TenantSignupPayload {
+  tenant_name: string;
+  owner: OwnerSignupPayload;
+}
+
+export interface TenantSignupResponse {
+  message: string;
+  tenant_id: string;
+  user_id: string;
+}
