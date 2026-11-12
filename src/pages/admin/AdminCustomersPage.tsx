@@ -7,6 +7,8 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 export const AdminCustomersPage: React.FC = () => {
@@ -23,6 +25,8 @@ export const AdminCustomersPage: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
 
   const { success, error: toastError } = useToast();
+  const { user } = useAuth();
+  const { tenant } = useTenant();
 
   const loadCustomers = async () => {
     setIsLoading(true);
@@ -44,8 +48,9 @@ export const AdminCustomersPage: React.FC = () => {
     e.preventDefault();
     if (!inviteEmail) return;
     setIsInviting(true);
+    const activeTenantId = tenant?.tenant_id || user?.tenant_id || 'default';
     try {
-      await customerService.inviteUser('tenant-rms-001', {
+      await customerService.inviteUser(activeTenantId, {
         email: inviteEmail,
         role: inviteRole,
       });

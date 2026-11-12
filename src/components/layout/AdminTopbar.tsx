@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { Store, Bell, ShieldCheck } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 
@@ -11,6 +12,7 @@ export interface AdminTopbarProps {
 
 export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, subtitle, actions }) => {
   const { user } = useAuth();
+  const { tenant } = useTenant();
 
   return (
     <header className="h-18 px-8 border-b border-border bg-surface/70 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between">
@@ -24,11 +26,13 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({ title, subtitle, actio
       <div className="flex items-center gap-4">
         {actions}
 
-        {/* Tenant status pill */}
+        {/* Dynamic Tenant status pill */}
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-secondary border border-border text-xs text-muted">
-          <Store className="w-3.5 h-3.5 text-primary" />
-          <span className="text-foreground font-medium">RMS Hospitality Group</span>
-          <span className="text-[10px] text-muted">• Multi-Branch</span>
+          <Store className="w-3.5 h-3.5 text-primary shrink-0" />
+          <span className="text-foreground font-medium truncate max-w-[200px]" title={tenant?.tenant_name || user?.tenant_name || undefined}>
+            {tenant?.tenant_name || user?.tenant_name || 'Restaurant Business'}
+          </span>
+          <span className="text-[10px] text-muted shrink-0">• Multi-Branch</span>
         </div>
 
         {/* Keycloak Verified Badge */}

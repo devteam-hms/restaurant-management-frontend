@@ -16,12 +16,14 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 
 export const AdminSidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { user, logout } = useAuth();
+  const { tenant } = useTenant();
   const navigate = useNavigate();
 
   const navItems = [
@@ -55,12 +57,15 @@ export const AdminSidebar: React.FC = () => {
             <span className="text-xs font-bold text-primary font-serif tracking-wider flex items-center justify-center w-7 h-7 rounded-full border border-primary/40 shrink-0">
               RMS
             </span>
-            <div>
+            <div className="min-w-0">
               <h2 className="font-serif text-lg tracking-[0.15em] uppercase text-foreground leading-none font-medium truncate">
                 RMS
               </h2>
-              <span className="text-[9px] uppercase tracking-[0.25em] text-primary/80 font-medium">
-                Admin Console
+              <span
+                className="text-[9px] uppercase tracking-[0.15em] text-primary/90 font-medium block truncate max-w-[150px]"
+                title={tenant?.tenant_name || user?.tenant_name || 'Admin Console'}
+              >
+                {tenant?.tenant_name || user?.tenant_name || 'Admin Console'}
               </span>
             </div>
           </div>
@@ -135,9 +140,9 @@ export const AdminSidebar: React.FC = () => {
                 {user?.name || user?.email?.split('@')[0]}
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-success inline-block" />
+                <span className="w-1.5 h-1.5 rounded-full bg-success inline-block shrink-0" />
                 <p className="text-[10px] text-muted uppercase tracking-wider truncate">
-                  {user?.roles?.[0] || 'OWNER'}
+                  {user?.roles?.[0] || 'OWNER'} {tenant?.tenant_id ? `• ${tenant.tenant_id}` : (user?.tenant_id ? `• ${user.tenant_id}` : '')}
                 </p>
               </div>
             </div>

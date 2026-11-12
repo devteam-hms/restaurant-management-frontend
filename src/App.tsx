@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { GlobalToaster } from '@/components/notifications/GlobalToaster';
 import { AuthProvider } from '@/context/AuthContext';
+import { TenantProvider } from '@/context/TenantContext';
 import { CartProvider } from '@/context/CartContext';
 import { AppRoutes } from '@/routes/AppRoutes';
 
@@ -22,10 +23,12 @@ export const App: React.FC = () => {
         <GlobalToaster />
         <ToastProvider>
           <AuthProvider>
-            <CartProvider>
-              <ScrollToTop />
-              <AppRoutes />
-            </CartProvider>
+            <TenantProvider>
+              <CartProvider>
+                <ScrollToTop />
+                <AppRoutes />
+              </CartProvider>
+            </TenantProvider>
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>

@@ -38,6 +38,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (token && storedUser) {
         setUser(storedUser);
+        // Sync fresh profile & tenant identity from backend
+        authService.getCurrentUserFromServer().then((fresh) => {
+          if (fresh) setUser(fresh);
+        });
       }
       if (storedRoleType) {
         setSelectedRoleTypeState(storedRoleType);

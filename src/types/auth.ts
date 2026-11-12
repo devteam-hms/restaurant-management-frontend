@@ -7,6 +7,7 @@ export interface AuthUser {
   name?: string | null;
   avatar?: string | null;
   tenant_id?: string | null;
+  tenant_name?: string | null;
   branch_id?: string | null;
 }
 

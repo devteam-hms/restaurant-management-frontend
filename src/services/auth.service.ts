@@ -8,6 +8,7 @@ import {
   TenantSignupResponse,
 } from '@/types/auth';
 import { TokenStorage } from '@/lib/token-storage';
+import { tenantService } from './tenant.service';
 import { INITIAL_CUSTOMERS, INITIAL_STAFF_USERS } from './mockData';
 
 export const authService = {
@@ -53,16 +54,58 @@ export const authService = {
       if (identifier.includes('customer')) {
         throw new Error('Access Denied: This account only has Customer permissions and cannot access the Restaurant Management Portal.');
       }
-      const staff = INITIAL_STAFF_USERS.find(s => s.email.toLowerCase() === identifier) || INITIAL_STAFF_USERS[0];
+      let tenant_id = 'tenant-rms-001';
+      let tenant_name = 'RMS Hospitality Group';
+      let staffName = 'Rajiv Malhotra (Executive Director)';
+      let staffRole = 'OWNER';
+
+      if (
+        identifier.includes('tenant_a') ||
+        identifier.includes('tenant-a') ||
+        identifier.includes('bengal') ||
+        identifier.includes('a@')
+      ) {
+        tenant_id = 'tenant-a';
+        tenant_name = 'The Bengal Table Hospitality';
+        staffName = 'Aakash Roy (Managing Director)';
+        staffRole = 'OWNER';
+      } else if (
+        identifier.includes('tenant_b') ||
+        identifier.includes('tenant-b') ||
+        identifier.includes('royal') ||
+        identifier.includes('thali') ||
+        identifier.includes('b@')
+      ) {
+        tenant_id = 'tenant-b';
+        tenant_name = 'Royal Thali Restaurant Enterprises';
+        staffName = 'Vikramaditya Rathore (Chief Executive)';
+        staffRole = 'OWNER';
+      } else {
+        const staff = INITIAL_STAFF_USERS.find((s) => s.email.toLowerCase() === identifier);
+        if (staff) {
+          tenant_id = staff.tenant_id;
+          staffName = staff.name;
+          staffRole = staff.role;
+        } else {
+          // Dynamic isolated tenant identity per arbitrary email
+          const slug = identifier.split('@')[0].replace(/[^a-z0-9]/g, '-');
+          tenant_id = `tenant-${slug}`;
+          tenant_name = `${slug.toUpperCase()} Dining Enterprise`;
+          staffName = `${identifier.split('@')[0].toUpperCase()} (Executive)`;
+          staffRole = 'OWNER';
+        }
+      }
+
       const authUser: AuthUser = {
-        id: staff.user_id,
-        keycloak_id: `kc-${staff.user_id}`,
-        email: staff.email,
-        username: staff.email.split('@')[0],
-        roles: [staff.role, 'TENANT_ADMIN'],
-        name: staff.name,
-        tenant_id: staff.tenant_id,
-        branch_id: staff.branch_id,
+        id: `user-${identifier.split('@')[0]}`,
+        keycloak_id: `kc-${identifier.split('@')[0]}`,
+        email: identifier.includes('@') ? identifier : `${identifier}@rms.com`,
+        username: identifier.split('@')[0],
+        roles: [staffRole, 'TENANT_ADMIN'],
+        name: staffName,
+        tenant_id: tenant_id,
+        tenant_name: tenant_name,
+        branch_id: 'branch-001',
       };
 
       const tokenRes: TokenResponse = {
@@ -155,10 +198,27 @@ export const authService = {
   },
 
   /**
-   * Clear credentials
+   * Fetch latest authenticated user profile and tenant ID from GET /auth/me
+   */
+  async getCurrentUserFromServer(): Promise<AuthUser | null> {
+    try {
+      const response = await apiClient.get<AuthUser>('/auth/me');
+      if (response.data) {
+        TokenStorage.setUser(response.data);
+        return response.data;
+      }
+    } catch (e) {
+      // In offline mode or if endpoint fails, return local storage user
+    }
+    return TokenStorage.getUser();
+  },
+
+  /**
+   * Clear credentials and purge tenant cache on logout
    */
   logout(): void {
     TokenStorage.clearAll();
+    tenantService.clearAllTenantData();
   },
 
   /**

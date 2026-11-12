@@ -9,6 +9,8 @@ import { Modal } from '@/components/common/Modal';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Input } from '@/components/common/Input';
 import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 
 export const AdminRestaurantsPage: React.FC = () => {
   const [restaurants, setRestaurants] = useState<RestaurantItem[]>([]);
@@ -27,6 +29,8 @@ export const AdminRestaurantsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const { success, error: toastError } = useToast();
+  const { user } = useAuth();
+  const { tenant } = useTenant();
   const navigate = useNavigate();
 
   const loadRestaurants = async () => {
@@ -78,15 +82,16 @@ export const AdminRestaurantsPage: React.FC = () => {
         });
         success('Restaurant Updated', `${name} updated successfully.`);
       } else {
+        const activeTenantId = tenant?.tenant_id || user?.tenant_id || 'default';
         await restaurantService.createRestaurant({
-          tenant_id: 'tenant-rms-001',
+          tenant_id: activeTenantId,
           name,
           description,
           cuisine,
           address,
           image: imageUrl,
         });
-        success('Restaurant Created', `${name} registered under tenant.`);
+        success('Restaurant Created', `${name} registered under ${tenant?.tenant_name || activeTenantId}.`);
       }
       setModalOpen(false);
       loadRestaurants();
