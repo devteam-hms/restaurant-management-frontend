@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { BackgroundVideo } from '@/components/common/BackgroundVideo';
 
 export const RoleSelectionLoginPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<'customer' | 'admin' | null>(null);
@@ -85,14 +86,16 @@ export const RoleSelectionLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col justify-center py-16 px-6 relative overflow-hidden transition-colors duration-300">
+    <div className="min-h-screen text-foreground flex flex-col justify-center py-16 px-6 relative overflow-hidden transition-colors duration-300">
+      {/* Full-Screen Cinematic Background Video with Theme Overlay */}
+      <BackgroundVideo
+        videoSrc="/videos/restaurant-ambience.mp4"
+        posterSrc="/videos/restaurant-poster.jpg"
+      />
+
       {/* Theme Toggle Top Right */}
       <div className="absolute top-6 right-6 z-20">
         <ThemeToggle size="sm" showLabel />
-      </div>
-      {/* Background Ambience */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-primary/5 rounded-full blur-[140px]" />
       </div>
 
       <div className="max-w-5xl mx-auto w-full relative z-10 space-y-10">
@@ -134,7 +137,7 @@ export const RoleSelectionLoginPage: React.FC = () => {
                 whileHover={{ y: -6, borderColor: 'rgba(212, 168, 83, 0.6)' }}
                 transition={{ duration: 0.25 }}
                 onClick={() => handleSelectRole('customer')}
-                className="group cursor-pointer rounded-2xl bg-surface border border-border p-8 shadow-luxury hover:shadow-luxury-hover flex flex-col justify-between space-y-6 relative overflow-hidden"
+                className="group cursor-pointer rounded-2xl bg-surface/90 backdrop-blur-md border border-border p-8 shadow-luxury hover:shadow-luxury-hover flex flex-col justify-between space-y-6 relative overflow-hidden"
               >
                 <div className="h-44 -mx-8 -mt-8 relative overflow-hidden">
                   <img
@@ -172,7 +175,7 @@ export const RoleSelectionLoginPage: React.FC = () => {
                 whileHover={{ y: -6, borderColor: 'rgba(212, 168, 83, 0.6)' }}
                 transition={{ duration: 0.25 }}
                 onClick={() => handleSelectRole('admin')}
-                className="group cursor-pointer rounded-2xl bg-surface border border-border p-8 shadow-luxury hover:shadow-luxury-hover flex flex-col justify-between space-y-6 relative overflow-hidden"
+                className="group cursor-pointer rounded-2xl bg-surface/90 backdrop-blur-md border border-border p-8 shadow-luxury hover:shadow-luxury-hover flex flex-col justify-between space-y-6 relative overflow-hidden"
               >
                 <div className="h-44 -mx-8 -mt-8 relative overflow-hidden">
                   <img
@@ -213,7 +216,7 @@ export const RoleSelectionLoginPage: React.FC = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: -15 }}
               transition={{ duration: 0.3 }}
-              className="max-w-md mx-auto w-full bg-surface border border-border rounded-2xl p-8 shadow-luxury space-y-6"
+              className="max-w-md mx-auto w-full bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-8 shadow-luxury space-y-6"
             >
               <div className="flex items-center justify-between border-b border-border/80 pb-4">
                 <button
