@@ -8,6 +8,7 @@ import {
   TenantSignupResponse,
 } from '@/types/auth';
 import { TokenStorage } from '@/lib/token-storage';
+import { normalizeRoles } from '@/lib/permissions';
 import { tenantService } from './tenant.service';
 import { INITIAL_CUSTOMERS, INITIAL_STAFF_USERS } from './mockData';
 
@@ -17,7 +18,11 @@ export const authService = {
    */
   async login(payload: LoginPayload, selectedRoleType?: 'customer' | 'admin'): Promise<TokenResponse> {
     try {
-      const response = await apiClient.post<TokenResponse>('/auth/login', payload);
+      const response = await apiClient.post<TokenResponse>('/auth/login', {
+        username: payload.username || (payload.email && !payload.email.includes('@') ? payload.email : undefined),
+        email: payload.email && payload.email.includes('@') ? payload.email : undefined,
+        password: payload.password,
+      });
       const data = response.data;
 
       if (data.access_token) {
@@ -28,15 +33,56 @@ export const authService = {
             data.refresh_expires_in || 604800
           );
         }
-        if (data.user) {
-          TokenStorage.setUser(data.user);
+
+        const rawRoles = data.user?.roles || [];
+        const normalizedRoles = normalizeRoles(rawRoles, selectedRoleType);
+
+        let userObj: AuthUser = {
+          id: data.user?.id || null,
+          keycloak_id: data.user?.keycloak_id || '',
+          email: data.user?.email || payload.email || null,
+          username: data.user?.username || payload.username || null,
+          name: data.user?.name || (payload.email ? payload.email.split('@')[0] : 'Administrator'),
+          roles: normalizedRoles,
+        };
+
+        // If user is staff/owner/admin, attempt to resolve their tenant organization from backend
+        const isStaff = userObj.roles?.some((r) =>
+          ['OWNER', 'MANAGER', 'STAFF', 'TENANT_ADMIN', 'ADMIN'].includes(r.toUpperCase())
+        );
+
+        if (isStaff) {
+          try {
+            const tenantRes = await tenantService.getTenants({ page: 1, limit: 1 });
+            if (tenantRes.data && tenantRes.data.length > 0) {
+              const activeTenant = tenantRes.data[0];
+              userObj = {
+                ...userObj,
+                tenant_id: activeTenant.tenant_id,
+                tenant_name: activeTenant.tenant_name,
+              };
+              TokenStorage.setCurrentTenantId(activeTenant.tenant_id);
+            }
+          } catch (tErr) {
+            console.warn('Could not load tenant during login:', tErr);
+          }
         }
+
+        TokenStorage.setUser(userObj);
+        if (selectedRoleType) TokenStorage.setSelectedRoleType(selectedRoleType);
+
+        return {
+          ...data,
+          user: userObj,
+        };
       }
       return data;
     } catch (error: any) {
-      // If backend is offline (ERR_NETWORK or 502/ECONNREFUSED) and mock fallback is enabled
       const isNetworkErr = error?.code === 'ERR_NETWORK' || !error.response;
-      if (isNetworkErr) {
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+
+      if (isNetworkErr && enableMock) {
+        console.warn('Backend server offline. Initiating interactive demo authentication fallback.');
         return this.demoLogin(payload, selectedRoleType);
       }
       throw new Error(extractErrorMessage(error));
@@ -44,12 +90,11 @@ export const authService = {
   },
 
   /**
-   * Demo fallback login simulating Keycloak credentials and role verification
+   * Demo fallback login simulating Keycloak credentials when backend server is completely unreachable
    */
   demoLogin(payload: LoginPayload, selectedRoleType?: 'customer' | 'admin'): TokenResponse {
     const identifier = (payload.email || payload.username || '').toLowerCase();
 
-    // Check if logging in as Admin
     if (selectedRoleType === 'admin') {
       if (identifier.includes('customer')) {
         throw new Error('Access Denied: This account only has Customer permissions and cannot access the Restaurant Management Portal.');
@@ -59,41 +104,17 @@ export const authService = {
       let staffName = 'Rajiv Malhotra (Executive Director)';
       let staffRole = 'OWNER';
 
-      if (
-        identifier.includes('tenant_a') ||
-        identifier.includes('tenant-a') ||
-        identifier.includes('bengal') ||
-        identifier.includes('a@')
-      ) {
-        tenant_id = 'tenant-a';
-        tenant_name = 'The Bengal Table Hospitality';
-        staffName = 'Aakash Roy (Managing Director)';
-        staffRole = 'OWNER';
-      } else if (
-        identifier.includes('tenant_b') ||
-        identifier.includes('tenant-b') ||
-        identifier.includes('royal') ||
-        identifier.includes('thali') ||
-        identifier.includes('b@')
-      ) {
-        tenant_id = 'tenant-b';
-        tenant_name = 'Royal Thali Restaurant Enterprises';
-        staffName = 'Vikramaditya Rathore (Chief Executive)';
-        staffRole = 'OWNER';
+      const staff = INITIAL_STAFF_USERS.find((s) => s.email.toLowerCase() === identifier);
+      if (staff) {
+        tenant_id = staff.tenant_id;
+        staffName = staff.name;
+        staffRole = staff.role;
       } else {
-        const staff = INITIAL_STAFF_USERS.find((s) => s.email.toLowerCase() === identifier);
-        if (staff) {
-          tenant_id = staff.tenant_id;
-          staffName = staff.name;
-          staffRole = staff.role;
-        } else {
-          // Dynamic isolated tenant identity per arbitrary email
-          const slug = identifier.split('@')[0].replace(/[^a-z0-9]/g, '-');
-          tenant_id = `tenant-${slug}`;
-          tenant_name = `${slug.toUpperCase()} Dining Enterprise`;
-          staffName = `${identifier.split('@')[0].toUpperCase()} (Executive)`;
-          staffRole = 'OWNER';
-        }
+        const slug = identifier.split('@')[0].replace(/[^a-z0-9]/g, '-');
+        tenant_id = `tenant-${slug}`;
+        tenant_name = `${slug.toUpperCase()} Dining Enterprise`;
+        staffName = `${identifier.split('@')[0].toUpperCase()} (Executive)`;
+        staffRole = 'OWNER';
       }
 
       const authUser: AuthUser = {
@@ -119,11 +140,11 @@ export const authService = {
       TokenStorage.setAccessToken(tokenRes.access_token, tokenRes.expires_in);
       TokenStorage.setRefreshToken(tokenRes.refresh_token || '', 86400);
       TokenStorage.setUser(authUser);
+      TokenStorage.setCurrentTenantId(tenant_id);
       if (selectedRoleType) TokenStorage.setSelectedRoleType(selectedRoleType);
 
       return tokenRes;
     } else {
-      // Customer login
       const customer = INITIAL_CUSTOMERS.find(c => c.email.toLowerCase() === identifier) || INITIAL_CUSTOMERS[0];
       const authUser: AuthUser = {
         id: customer.id,
@@ -183,8 +204,8 @@ export const authService = {
       return response.data;
     } catch (error: any) {
       const isNetworkErr = error?.code === 'ERR_NETWORK' || !error.response;
-      if (isNetworkErr) {
-        // Interactive offline demo simulation
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         const mockTenantId = `tenant-${Date.now().toString(36)}`;
         const mockUserId = `user-${Date.now().toString(36)}`;
         return {
@@ -195,22 +216,6 @@ export const authService = {
       }
       throw new Error(extractErrorMessage(error));
     }
-  },
-
-  /**
-   * Fetch latest authenticated user profile and tenant ID from GET /auth/me
-   */
-  async getCurrentUserFromServer(): Promise<AuthUser | null> {
-    try {
-      const response = await apiClient.get<AuthUser>('/auth/me');
-      if (response.data) {
-        TokenStorage.setUser(response.data);
-        return response.data;
-      }
-    } catch (e) {
-      // In offline mode or if endpoint fails, return local storage user
-    }
-    return TokenStorage.getUser();
   },
 
   /**
@@ -229,10 +234,16 @@ export const authService = {
   },
 
   /**
+   * Refresh current user profile from storage/token
+   */
+  async getCurrentUserFromServer(): Promise<AuthUser | null> {
+    return TokenStorage.getUser();
+  },
+
+  /**
    * Check if user is currently authenticated
    */
   isAuthenticated(): boolean {
     return !!TokenStorage.getAccessToken();
   },
 };
-

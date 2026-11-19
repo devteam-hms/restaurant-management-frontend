@@ -14,6 +14,7 @@ import { useCart } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
 import { isTenantAdmin } from '@/lib/permissions';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { resolveAvatarUrl } from '@/services/customer.service';
 
 export const CustomerSidebar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -41,9 +42,9 @@ export const CustomerSidebar: React.FC = () => {
   const showAdminLink = user && isTenantAdmin(user.roles);
 
   return (
-    <aside className="w-64 bg-surface border-r border-border min-h-screen flex flex-col z-30">
+    <aside className="w-64 bg-surface border-r border-border h-screen flex flex-col z-30 sticky top-0 shrink-0">
       {/* Brand Header */}
-      <div className="p-6 border-b border-border/80">
+      <div className="p-6 border-b border-border/80 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold text-primary font-serif tracking-wider flex items-center justify-center w-7 h-7 rounded-full border border-primary/40 shrink-0">
             RMS
@@ -90,7 +91,7 @@ export const CustomerSidebar: React.FC = () => {
 
       {/* Switch to Management shortcut (if authorized) */}
       {showAdminLink && (
-        <div className="px-4 pb-3">
+        <div className="px-4 pb-3 shrink-0">
           <button
             onClick={() => navigate('/admin')}
             className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors"
@@ -102,12 +103,15 @@ export const CustomerSidebar: React.FC = () => {
       )}
 
       {/* Customer profile card footer */}
-      <div className="p-4 border-t border-border/80 bg-surface-secondary/40">
+      <div className="p-4 border-t border-border/80 bg-surface-secondary/40 shrink-0">
         <div className="flex items-center gap-3">
-          {user?.avatar ? (
+          {user?.avatar && resolveAvatarUrl(user.avatar) ? (
             <img
-              src={user.avatar}
-              alt={user.name || 'Profile'}
+              src={resolveAvatarUrl(user.avatar)}
+              alt=""
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
               className="w-9 h-9 rounded-full object-cover border border-primary/40 shrink-0"
             />
           ) : (

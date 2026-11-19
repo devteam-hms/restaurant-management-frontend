@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, Star, Plus, Check, ArrowRight } from 'lucide-react';
+import { Search, MapPin, Star, Plus, Check, ArrowRight, UtensilsCrossed } from 'lucide-react';
 import { restaurantService } from '@/services/restaurant.service';
 import { branchService } from '@/services/branch.service';
 import { menuService } from '@/services/menu.service';
@@ -20,62 +20,117 @@ export const CustomerExplorePage: React.FC = () => {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMenus, setIsLoadingMenus] = useState(false);
 
   const { addItem, totalCount } = useCart();
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true;
     const init = async () => {
       setIsLoading(true);
       try {
         const res = await restaurantService.getRestaurants();
-        setRestaurants(res.data);
-        if (res.data.length > 0) {
-          const firstRest = res.data[0];
+        if (!isMounted) return;
+        const restList = res.data || [];
+        setRestaurants(restList);
+        if (restList.length > 0) {
+          const firstRest = restList[0];
           setSelectedRestaurant(firstRest);
           const bRes = await branchService.getBranches({ restaurant_id: firstRest.restaurant_id });
-          setBranches(bRes.data);
-          if (bRes.data.length > 0) {
-            const firstBranch = bRes.data[0].branch_id;
+          if (!isMounted) return;
+          const branchList = bRes.data || [];
+          setBranches(branchList);
+          if (branchList.length > 0) {
+            const firstBranch = branchList[0].branch_id;
             setSelectedBranchId(firstBranch);
-            const mRes = await menuService.getMenusByBranch(firstBranch);
-            setMenus(mRes.data);
+            try {
+              const mRes = await menuService.getMenusByBranch(firstBranch, { limit: 100 });
+              if (!isMounted) return;
+              const branchItems = (mRes.data || []).filter(
+                (m) => String(m.branch_id) === String(firstBranch) && (m.status === undefined || m.status === 1)
+              );
+              setMenus(branchItems);
+            } catch (menuErr) {
+              console.error('Error fetching initial branch menus', menuErr);
+              if (isMounted) setMenus([]);
+            }
+          } else {
+            setSelectedBranchId('');
+            setMenus([]);
           }
         }
       } catch (e) {
         console.error('Error fetching explore data', e);
+        if (isMounted) {
+          setRestaurants([]);
+          setBranches([]);
+          setMenus([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
     init();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSelectRestaurant = async (rest: RestaurantItem) => {
+    if (selectedRestaurant?.restaurant_id === rest.restaurant_id) return;
     setSelectedRestaurant(rest);
+    setIsLoadingMenus(true);
+    setBranches([]);
+    setSelectedBranchId('');
+    setMenus([]);
     try {
       const bRes = await branchService.getBranches({ restaurant_id: rest.restaurant_id });
-      setBranches(bRes.data);
-      if (bRes.data.length > 0) {
-        const bId = bRes.data[0].branch_id;
+      const branchList = bRes.data || [];
+      setBranches(branchList);
+      if (branchList.length > 0) {
+        const bId = branchList[0].branch_id;
         setSelectedBranchId(bId);
-        const mRes = await menuService.getMenusByBranch(bId);
-        setMenus(mRes.data);
+        try {
+          const mRes = await menuService.getMenusByBranch(bId, { limit: 100 });
+          const branchItems = (mRes.data || []).filter(
+            (m) => String(m.branch_id) === String(bId) && (m.status === undefined || m.status === 1)
+          );
+          setMenus(branchItems);
+        } catch (menuErr) {
+          console.error('Error fetching menus for branch', menuErr);
+          setMenus([]);
+        }
       } else {
+        setSelectedBranchId('');
         setMenus([]);
       }
     } catch (e) {
       console.error('Error fetching branch menu', e);
+      setBranches([]);
+      setSelectedBranchId('');
+      setMenus([]);
+    } finally {
+      setIsLoadingMenus(false);
     }
   };
 
   const handleSelectBranch = async (branchId: string) => {
+    if (branchId === selectedBranchId && menus.length > 0) return;
     setSelectedBranchId(branchId);
+    setIsLoadingMenus(true);
+    setMenus([]);
     try {
-      const mRes = await menuService.getMenusByBranch(branchId);
-      setMenus(mRes.data);
+      const mRes = await menuService.getMenusByBranch(branchId, { limit: 100 });
+      const branchItems = (mRes.data || []).filter(
+        (m) => String(m.branch_id) === String(branchId) && (m.status === undefined || m.status === 1)
+      );
+      setMenus(branchItems);
     } catch (e) {
-      console.error('Error fetching menu items', e);
+      console.error('Error fetching menu items for branch', e);
+      setMenus([]);
+    } finally {
+      setIsLoadingMenus(false);
     }
   };
 
@@ -160,13 +215,25 @@ export const CustomerExplorePage: React.FC = () => {
 
       {/* Menu Items Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
+        {isLoading || isLoadingMenus ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-72 rounded-2xl bg-surface animate-pulse" />
           ))
+        ) : menus.length === 0 ? (
+          <div className="col-span-full py-16 text-center space-y-3 rounded-2xl border border-dashed border-border bg-surface/40 p-8">
+            <UtensilsCrossed className="w-10 h-10 text-muted/50 mx-auto" />
+            <h3 className="font-serif text-lg text-foreground">No Menu Items For This Branch</h3>
+            <p className="text-xs text-muted max-w-sm mx-auto">
+              This branch has not added or published any menu dishes yet. Please select a different branch or restaurant.
+            </p>
+          </div>
         ) : filteredMenus.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-muted font-serif italic">
-            No culinary items found matching your search.
+          <div className="col-span-full py-16 text-center space-y-3 rounded-2xl border border-dashed border-border bg-surface/40 p-8">
+            <Search className="w-10 h-10 text-muted/50 mx-auto" />
+            <h3 className="font-serif text-lg text-foreground">No dishes match "{search}"</h3>
+            <p className="text-xs text-muted max-w-sm mx-auto">
+              Try searching with another keyword or ingredient name.
+            </p>
           </div>
         ) : (
           filteredMenus.map((item) => (

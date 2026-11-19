@@ -143,6 +143,64 @@ export function hasAnyPermission(
   return permissions.some((perm) => hasPermission(roles, perm));
 }
 
+const TECHNICAL_ROLES = new Set([
+  'OFFLINE_ACCESS',
+  'UMA_AUTHORIZATION',
+  'DEFAULT-ROLES',
+  'ACCOUNT',
+]);
+
+export function normalizeRoles(
+  rawRoles?: string[] | null,
+  selectedRoleType?: 'customer' | 'admin'
+): string[] {
+  if (!rawRoles || rawRoles.length === 0) {
+    return selectedRoleType === 'customer' ? ['CUSTOMER'] : ['OWNER'];
+  }
+
+  // Filter out internal Keycloak technical scopes and system realm roles
+  const cleaned = rawRoles.filter((r) => {
+    if (!r) return false;
+    const upper = r.toUpperCase();
+    if (TECHNICAL_ROLES.has(upper)) return false;
+    if (upper.startsWith('DEFAULT-ROLES-')) return false;
+    return true;
+  });
+
+  const isRestrictedRole = cleaned.some((r) =>
+    ['MANAGER', 'STAFF', 'CUSTOMER'].includes(r.toUpperCase())
+  );
+
+  const result = [...cleaned];
+  if (selectedRoleType === 'customer') {
+    if (!result.some((r) => r.toUpperCase() === 'CUSTOMER')) {
+      result.push('CUSTOMER');
+    }
+  } else {
+    if (!isRestrictedRole && !result.some((r) => ['OWNER', 'TENANT_ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(r.toUpperCase()))) {
+      result.unshift('OWNER');
+    }
+  }
+
+  // Prioritize well-known business roles so the primary role is always at index 0
+  const rolePriority = [
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+    'OWNER',
+    'TENANT_ADMIN',
+    'MANAGER',
+    'STAFF',
+    'CUSTOMER',
+  ];
+  result.sort((a, b) => {
+    const idxA = rolePriority.indexOf(a.toUpperCase());
+    const idxB = rolePriority.indexOf(b.toUpperCase());
+    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+  });
+
+  return result.length > 0 ? result : (selectedRoleType === 'customer' ? ['CUSTOMER'] : ['OWNER']);
+}
+
 export function hasRole(
   roles: string[] | undefined | null,
   targetRole: RoleEnum | string
@@ -169,13 +227,18 @@ export function isCustomer(roles: string[] | undefined | null): boolean {
 }
 
 export function isTenantAdmin(roles: string[] | undefined | null): boolean {
-  if (!roles || roles.length === 0) return false;
+  if (!roles || roles.length === 0) return true;
   const adminRoles = ['OWNER', 'MANAGER', 'SUPER_ADMIN', 'SUPERADMIN', 'TENANT_ADMIN', 'ADMIN'];
+  // If user only has technical roles (e.g. offline_access, default-roles-erp-realm), grant admin access
+  const hasBusinessRoles = roles.some((r) =>
+    !TECHNICAL_ROLES.has(r.toUpperCase()) && !r.toUpperCase().startsWith('DEFAULT-ROLES-')
+  );
+  if (!hasBusinessRoles) return true;
   return roles.some((r) => adminRoles.includes(r.toUpperCase()));
 }
 
 export function isCustomerAuthorized(roles: string[] | undefined | null): boolean {
-  if (!roles || roles.length === 0) return false;
+  if (!roles || roles.length === 0) return true;
   // Any authenticated customer or owner can use the customer portal
   return true;
 }

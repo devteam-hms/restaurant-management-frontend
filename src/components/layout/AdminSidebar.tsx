@@ -46,12 +46,12 @@ export const AdminSidebar: React.FC = () => {
   return (
     <aside
       className={cn(
-        'relative bg-surface border-r border-border min-h-screen flex flex-col transition-all duration-300 z-30',
+        'relative bg-surface border-r border-border h-screen flex flex-col transition-all duration-300 z-30 sticky top-0 shrink-0',
         collapsed ? 'w-20' : 'w-64'
       )}
     >
       {/* Brand Header */}
-      <div className="p-5 border-b border-border/80 flex items-center justify-between">
+      <div className="p-5 border-b border-border/80 flex items-center justify-between shrink-0">
         {!collapsed ? (
           <div className="flex items-center gap-3 overflow-hidden">
             <span className="text-xs font-bold text-primary font-serif tracking-wider flex items-center justify-center w-7 h-7 rounded-full border border-primary/40 shrink-0">
@@ -114,7 +114,7 @@ export const AdminSidebar: React.FC = () => {
       </nav>
 
       {/* Switch to Dining Portal shortcut */}
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-3 shrink-0">
         <button
           onClick={() => navigate('/customer')}
           className={cn(
@@ -129,7 +129,7 @@ export const AdminSidebar: React.FC = () => {
       </div>
 
       {/* User profile & Logout footer */}
-      <div className="p-3 border-t border-border/80 bg-surface-secondary/40">
+      <div className="p-3 border-t border-border/80 bg-surface-secondary/40 shrink-0">
         <div className={cn('flex items-center gap-3', collapsed && 'justify-center flex-col')}>
           <div className="w-8 h-8 rounded-full bg-primary/20 text-primary border border-primary/40 flex items-center justify-center font-bold text-xs shrink-0">
             {(user?.name || user?.email || 'A')[0].toUpperCase()}

@@ -14,6 +14,8 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { orderService } from '@/services/order.service';
 import { billService } from '@/services/bill.service';
+import { branchService } from '@/services/branch.service';
+import { customerService } from '@/services/customer.service';
 import { OrderItemResponseModel } from '@/types/order';
 import { BillItem } from '@/types/bill';
 import { Card } from '@/components/common/Card';
@@ -22,20 +24,63 @@ import { OrderStatusBadge, PaymentStatusBadge } from '@/components/common/Badge'
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 export const CustomerOverviewPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateCurrentUserProfile } = useAuth();
   const [orders, setOrders] = useState<OrderItemResponseModel[]>([]);
   const [bills, setBills] = useState<BillItem[]>([]);
+  const [totalOrdersCount, setTotalOrdersCount] = useState<number>(0);
+  const [totalBillsCount, setTotalBillsCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize customerName, avoiding email username fallback if full name is available
+  const [customerName, setCustomerName] = useState<string>(() => {
+    const raw = user?.name || '';
+    if (raw && !raw.includes('@') && raw !== user?.email?.split('@')[0]) {
+      return raw;
+    }
+    return '';
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ordersRes, billsRes] = await Promise.all([
+        const [ordersRes, billsRes, branchesRes, profileRes] = await Promise.all([
           orderService.getOrders({ page: 1, limit: 10 }),
           billService.getBills({ page: 1, limit: 10 }),
+          branchService.getBranches({ limit: 100 }).catch(() => ({ data: [] })),
+          customerService.getProfile().catch(() => null),
         ]);
-        setOrders(ordersRes.data);
-        setBills(billsRes.data);
+
+        if (profileRes) {
+          const resolved =
+            profileRes.name ||
+            `${profileRes.first_name || ''} ${profileRes.last_name || ''}`.trim();
+          if (resolved && resolved !== profileRes.email) {
+            setCustomerName(resolved);
+            updateCurrentUserProfile({ name: resolved, avatar: profileRes.avatar });
+          }
+        }
+
+        const branchMap = new Map<string, string>();
+        (branchesRes.data || []).forEach((b) => {
+          if (b.branch_id && b.branch_name) {
+            branchMap.set(b.branch_id, b.branch_name);
+          }
+        });
+
+        const mappedOrders = (ordersRes.data || []).map((o) => ({
+          ...o,
+          branch_name: branchMap.get(o.branch_id) || o.branch_name || 'Dining Hall',
+        }));
+
+        const mappedBills = (billsRes.data || []).map((b) => ({
+          ...b,
+          branch_name: branchMap.get(b.branch_id) || b.branch_name || 'Dining Hall',
+        }));
+
+        setOrders(mappedOrders);
+        setBills(mappedBills);
+        setTotalOrdersCount(ordersRes.total ?? ordersRes.data?.length ?? 0);
+        setTotalBillsCount(billsRes.total ?? billsRes.data?.length ?? 0);
       } catch (e) {
         console.error('Failed to load customer overview', e);
       } finally {
@@ -45,11 +90,14 @@ export const CustomerOverviewPage: React.FC = () => {
     fetchData();
   }, []);
 
-  const totalOrdersCount = orders.length;
   const activeOrders = orders.filter((o) =>
     ['PLACED', 'CONFIRMED', 'PREPARING', 'READY'].includes(o.order_status)
   );
   const completedOrders = orders.filter((o) => o.order_status === 'COMPLETED');
+
+  const displayName =
+    customerName ||
+    (user?.name && user.name !== user.email?.split('@')[0] ? user.name : 'Valued Diner');
 
   return (
     <div className="space-y-10">
@@ -61,7 +109,7 @@ export const CustomerOverviewPage: React.FC = () => {
             <span>RMS Privilege Dining</span>
           </div>
           <h1 className="font-serif text-4xl sm:text-5xl font-normal text-foreground">
-            Welcome back, <span className="italic text-primary">{user?.name || 'Valued Guest'}</span>.
+            Welcome back, <span className="italic text-primary">{displayName}</span>.
           </h1>
           <p className="text-xs sm:text-sm text-muted font-light">
             Here is a summary of your dining experiences, active food orders, and billing invoices.
@@ -119,7 +167,7 @@ export const CustomerOverviewPage: React.FC = () => {
             <Receipt className="w-4 h-4 text-primary" />
           </div>
           <div className="font-serif text-3xl font-medium text-foreground">
-            {isLoading ? '—' : bills.length}
+            {isLoading ? '—' : totalBillsCount}
           </div>
           <p className="text-[11px] text-muted">Formal receipts with tax breakdown</p>
         </Card>
@@ -148,7 +196,7 @@ export const CustomerOverviewPage: React.FC = () => {
                     <span className="font-mono text-xs font-semibold text-primary">{ord.id}</span>
                     <OrderStatusBadge status={ord.order_status} />
                   </div>
-                  <p className="text-xs text-foreground mt-1 font-medium">{ord.branch_name || 'Kolkata — Park Street Flagship'}</p>
+                  <p className="text-xs text-foreground mt-1 font-medium">{ord.branch_name || 'Dining Hall'}</p>
                   <p className="text-[11px] text-muted mt-0.5">
                     {ord.items.map((i) => `${i.quantity}x ${i.menu_name}`).join(', ')}
                   </p>
@@ -178,56 +226,58 @@ export const CustomerOverviewPage: React.FC = () => {
         </div>
 
         <div className="rounded-xl border border-border bg-surface overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border/80 bg-surface-secondary/60 text-xs uppercase tracking-wider text-muted">
-                <th className="px-5 py-3.5 font-medium">Order ID</th>
-                <th className="px-5 py-3.5 font-medium">Branch Location</th>
-                <th className="px-5 py-3.5 font-medium">Dishes</th>
-                <th className="px-5 py-3.5 font-medium">Status</th>
-                <th className="px-5 py-3.5 font-medium">Total</th>
-                <th className="px-5 py-3.5 font-medium">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-muted text-xs">
-                    Loading activity...
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border/80 bg-surface-secondary/60 text-[11px] uppercase tracking-wider text-muted">
+                  <th className="px-3.5 py-3 font-medium whitespace-nowrap">Order ID</th>
+                  <th className="px-3.5 py-3 font-medium whitespace-nowrap">Branch Location</th>
+                  <th className="px-3.5 py-3 font-medium whitespace-nowrap">Dishes</th>
+                  <th className="px-3.5 py-3 font-medium whitespace-nowrap">Status</th>
+                  <th className="px-3.5 py-3 font-medium whitespace-nowrap">Total</th>
+                  <th className="px-3.5 py-3 font-medium whitespace-nowrap">Date</th>
                 </tr>
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-muted font-serif italic">
-                    No orders placed yet. Peruse our menus to create your first order.
-                  </td>
-                </tr>
-              ) : (
-                orders.slice(0, 5).map((order) => (
-                  <tr key={order.id} className="hover:bg-surface-secondary/40 transition-colors">
-                    <td className="px-5 py-3.5 font-mono text-xs font-semibold text-primary">
-                      {order.id}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-foreground font-medium">
-                      {order.branch_name || 'The Bengal Table — Park Street Flagship'}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-muted max-w-xs truncate">
-                      {order.items.map((i) => `${i.quantity}x ${i.menu_name}`).join(', ')}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <OrderStatusBadge status={order.order_status} />
-                    </td>
-                    <td className="px-5 py-3.5 font-mono text-xs font-semibold text-foreground">
-                      {formatCurrency(order.total_amount)}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-muted">
-                      {formatDate(order.created_at)}
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted text-xs">
+                      Loading activity...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-muted font-serif italic">
+                      No orders placed yet. Peruse our menus to create your first order.
+                    </td>
+                  </tr>
+                ) : (
+                  orders.slice(0, 5).map((order) => (
+                    <tr key={order.id} className="hover:bg-surface-secondary/40 transition-colors">
+                      <td className="px-3.5 py-2.5 font-mono text-xs font-semibold text-primary whitespace-nowrap">
+                        {order.id}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-xs text-foreground font-medium whitespace-nowrap">
+                        {order.branch_name || 'Dining Hall'}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-xs text-muted max-w-[200px] truncate">
+                        {order.items.map((i) => `${i.quantity}x ${i.menu_name}`).join(', ')}
+                      </td>
+                      <td className="px-3.5 py-2.5 whitespace-nowrap">
+                        <OrderStatusBadge status={order.order_status} />
+                      </td>
+                      <td className="px-3.5 py-2.5 font-mono text-xs font-semibold text-foreground whitespace-nowrap">
+                        {formatCurrency(order.total_amount)}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-[11px] text-muted whitespace-nowrap">
+                        {formatDate(order.created_at)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

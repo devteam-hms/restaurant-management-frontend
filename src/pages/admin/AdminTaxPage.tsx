@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Percent, Plus, Edit3, CheckCircle, ShieldCheck, History, AlertCircle } from 'lucide-react';
-import { taxService } from '@/services/tax.service';
 import { TaxConfigItem } from '@/types/tax';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
@@ -9,11 +8,17 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Input } from '@/components/common/Input';
 import { useToast } from '@/context/ToastContext';
 import { formatDate } from '@/lib/utils';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+  fetchTaxes,
+  createTax,
+  updateTax,
+  activateTax,
+} from '@/store/slices/taxSlice';
 
 export const AdminTaxPage: React.FC = () => {
-  const [taxConfigs, setTaxConfigs] = useState<TaxConfigItem[]>([]);
-  const [activeTax, setActiveTax] = useState<TaxConfigItem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { items: taxConfigs, activeTax, isLoading, isSaving } = useAppSelector((state) => state.taxes);
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -22,29 +27,22 @@ export const AdminTaxPage: React.FC = () => {
   const [percentage, setPercentage] = useState(12.5);
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [taxToActivate, setTaxToActivate] = useState<TaxConfigItem | null>(null);
   const [isActivating, setIsActivating] = useState(false);
 
   const { success, error: toastError } = useToast();
 
-  const loadTaxData = async () => {
-    setIsLoading(true);
-    try {
-      const list = await taxService.getTaxConfigs();
-      setTaxConfigs(list);
-      const active = list.find((t) => t.is_active) || list[0] || null;
-      setActiveTax(active);
-    } catch (e: any) {
-      toastError('Failed to load tax configurations', e.message);
-    } finally {
-      setIsLoading(false);
-    }
+  const loadTaxData = () => {
+    dispatch(fetchTaxes())
+      .unwrap()
+      .catch((e: any) => {
+        toastError('Failed to load tax configurations', typeof e === 'string' ? e : e?.message || 'Error');
+      });
   };
 
   useEffect(() => {
     loadTaxData();
-  }, []);
+  }, [dispatch]);
 
   const openCreateModal = () => {
     setEditingTax(null);
@@ -66,48 +64,53 @@ export const AdminTaxPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
     try {
       if (editingTax) {
-        await taxService.updateTaxConfig(editingTax.id, {
-          name,
-          tax_percentage: Number(percentage),
-          description,
-          is_active: isActive,
-        });
+        await dispatch(
+          updateTax({
+            id: editingTax.id,
+            payload: {
+              name,
+              tax_percentage: Number(percentage),
+              description,
+              is_active: isActive,
+            },
+          })
+        ).unwrap();
         success('Tax Configuration Updated', `${name} set to ${percentage}%.`);
       } else {
-        await taxService.createTaxConfig({
-          name,
-          tax_percentage: Number(percentage),
-          description,
-          is_active: isActive,
-        });
+        await dispatch(
+          createTax({
+            name,
+            tax_percentage: Number(percentage),
+            description,
+            is_active: isActive,
+          })
+        ).unwrap();
         success('Tax Configuration Created', `${name} (${percentage}%) registered.`);
       }
       setModalOpen(false);
-      loadTaxData();
     } catch (e: any) {
-      toastError('Failed to save tax configuration', e.message);
-    } finally {
-      setIsSaving(false);
+      toastError('Failed to save tax configuration', typeof e === 'string' ? e : e?.message || 'Failed to save');
     }
   };
 
-    const handleConfirmActivate = async () => {
-      if (!taxToActivate) return;
-      setIsActivating(true);
-      try {
-        const activated = await taxService.activateTaxConfig(taxToActivate.id);
-        success('Tax Rate Activated', `${activated.name} is now the authoritative billing rate (${activated.tax_percentage}%).`);
-        setTaxToActivate(null);
-        loadTaxData();
-      } catch (e: any) {
-        toastError('Activation Failed', e.message);
-      } finally {
-        setIsActivating(false);
-      }
-    };
+  const handleConfirmActivate = async () => {
+    if (!taxToActivate) return;
+    setIsActivating(true);
+    try {
+      const activated = await dispatch(activateTax(taxToActivate.id)).unwrap();
+      success(
+        'Tax Rate Activated',
+        `${activated.name} is now the authoritative billing rate (${activated.tax_percentage}%).`
+      );
+      setTaxToActivate(null);
+    } catch (e: any) {
+      toastError('Activation Failed', typeof e === 'string' ? e : e?.message || 'Activation failed');
+    } finally {
+      setIsActivating(false);
+    }
+  };
 
     return (
       <div className="space-y-8">
@@ -122,7 +125,7 @@ export const AdminTaxPage: React.FC = () => {
           }
         />
 
-        <div className="px-8 space-y-8">
+        <div className="px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
           {/* Active Tax Rule Feature Banner */}
           <div className="p-8 rounded-2xl bg-surface border border-primary/50 shadow-luxury relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2">
@@ -179,79 +182,81 @@ export const AdminTaxPage: React.FC = () => {
             </div>
 
             <div className="rounded-2xl border border-border bg-surface overflow-hidden shadow-luxury">
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="border-b border-border/80 bg-surface-secondary/60 text-xs uppercase tracking-wider text-muted">
-                    <th className="px-6 py-4 font-medium">Configuration Name</th>
-                    <th className="px-6 py-4 font-medium">Rate (%)</th>
-                    <th className="px-6 py-4 font-medium">Description</th>
-                    <th className="px-6 py-4 font-medium">Status</th>
-                    <th className="px-6 py-4 font-medium">Last Modified</th>
-                    <th className="px-6 py-4 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-muted text-xs">
-                        Loading tax configurations...
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-border/80 bg-surface-secondary/60 text-[11px] uppercase tracking-wider text-muted">
+                      <th className="px-3.5 py-3 font-medium whitespace-nowrap">Configuration Name</th>
+                      <th className="px-3.5 py-3 font-medium whitespace-nowrap">Rate (%)</th>
+                      <th className="px-3.5 py-3 font-medium whitespace-nowrap">Description</th>
+                      <th className="px-3.5 py-3 font-medium whitespace-nowrap">Status</th>
+                      <th className="px-3.5 py-3 font-medium whitespace-nowrap">Last Modified</th>
+                      <th className="px-3.5 py-3 font-medium text-right whitespace-nowrap pr-4">Actions</th>
                     </tr>
-                  ) : (
-                    taxConfigs.map((tax) => (
-                      <tr key={tax.id} className="hover:bg-surface-secondary/40 transition-colors">
-                        <td className="px-6 py-4 font-medium text-foreground text-xs">
-                          {tax.name}
-                        </td>
-                        <td className="px-6 py-4 font-mono text-sm font-bold text-primary">
-                          {tax.tax_percentage}%
-                        </td>
-                        <td className="px-6 py-4 text-xs text-muted max-w-sm truncate">
-                          {tax.description || '—'}
-                        </td>
-                        <td className="px-6 py-4">
-                          {tax.is_active ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-success/15 text-success border border-success/30">
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              Active Rule
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-surface-secondary text-muted border border-border">
-                              Archived
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-muted">
-                          {formatDate(tax.updated_at || tax.created_at)}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="px-2.5 py-1 text-xs"
-                              onClick={() => openEditModal(tax)}
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>Edit</span>
-                            </Button>
-                            {!tax.is_active && (
-                              <Button
-                                variant="gold-outline"
-                                size="sm"
-                                className="px-2.5 py-1 text-xs"
-                                onClick={() => setTaxToActivate(tax)}
-                              >
-                                <span>Activate</span>
-                              </Button>
-                            )}
-                          </div>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center text-muted text-xs">
+                          Loading tax configurations...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      taxConfigs.map((tax) => (
+                        <tr key={tax.id} className="hover:bg-surface-secondary/40 transition-colors">
+                          <td className="px-3.5 py-2.5 font-medium text-foreground text-xs whitespace-nowrap">
+                            {tax.name}
+                          </td>
+                          <td className="px-3.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                            {tax.tax_percentage}%
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs text-muted max-w-sm truncate">
+                            {tax.description || '—'}
+                          </td>
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
+                            {tax.is_active ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-success/15 text-success border border-success/30">
+                                <CheckCircle className="w-3 h-3" />
+                                Active Rule
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-surface-secondary text-muted border border-border">
+                                Archived
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-xs text-muted whitespace-nowrap">
+                            {formatDate(tax.updated_at || tax.created_at)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-right whitespace-nowrap pr-4">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="px-2 py-1 text-[11px] h-7"
+                                onClick={() => openEditModal(tax)}
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </Button>
+                              {!tax.is_active && (
+                                <Button
+                                  variant="gold-outline"
+                                  size="sm"
+                                  className="px-2.5 py-1 text-[11px] h-7"
+                                  onClick={() => setTaxToActivate(tax)}
+                                >
+                                  <span>Activate</span>
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

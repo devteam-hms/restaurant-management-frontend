@@ -10,9 +10,9 @@ export const CustomerLayout: React.FC = () => {
   const { totalCount } = useCart();
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground transition-colors duration-300">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
+    <div className="h-screen flex bg-background text-foreground overflow-hidden transition-colors duration-300">
+      {/* Desktop Sidebar - persistent on scroll */}
+      <div className="hidden lg:block h-full shrink-0">
         <CustomerSidebar />
       </div>
 
@@ -36,8 +36,8 @@ export const CustomerLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      {/* Main Content Area - isolated scrollable pane */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-surface sticky top-0 z-20">
           <button
@@ -89,7 +89,7 @@ export const CustomerLayout: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 p-6 sm:p-8 lg:p-10 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Outlet />
         </main>
       </div>

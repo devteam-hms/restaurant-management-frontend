@@ -1,8 +1,8 @@
 import { apiClient, extractErrorMessage } from './api';
 import { TenantItem, TenantUpdatePayload } from '@/types/tenant';
 import { PaginatedResponse } from '@/types/api';
+import { TokenStorage } from '@/lib/token-storage';
 
-// Default isolated demo profile seed dictionary keyed strictly by tenant_id
 const DEMO_TENANT_DEFAULTS: Record<string, Partial<TenantItem>> = {
   'tenant-rms-001': {
     tenant_name: 'RMS Hospitality Group',
@@ -39,10 +39,13 @@ export const tenantService = {
       return response.data;
     } catch (error: any) {
       const isNetworkErr = error?.code === 'ERR_NETWORK' || !error.response;
-      if (isNetworkErr) {
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
+        const storedId = TokenStorage.getCurrentTenantId() || 'tenant-rms-001';
+        const demo = this.getDemoTenant(storedId);
         return {
-          data: [],
-          total: 0,
+          data: [demo],
+          total: 1,
           page: 1,
           limit: 10,
           total_pages: 1,
@@ -53,7 +56,8 @@ export const tenantService = {
   },
 
   /**
-   * Fetch single tenant profile by tenant ID from GET /tenants/{tenant_id}
+   * Fetch single tenant profile by tenant ID.
+   * Since the backend router provides paginated GET /tenants, we query GET /tenants and match by tenant_id.
    */
   async getTenantById(tenantId: string): Promise<TenantItem> {
     if (!tenantId) {
@@ -61,26 +65,17 @@ export const tenantService = {
     }
 
     try {
-      // 1. Attempt single tenant endpoint GET /tenants/{tenant_id}
-      const response = await apiClient.get<TenantItem>(`/tenants/${tenantId}`);
-      return response.data;
+      const listRes = await this.getTenants({ limit: 50 });
+      const match = listRes.data.find((t: TenantItem) => t.tenant_id === tenantId);
+      if (match) return match;
+      if (listRes.data.length > 0) return listRes.data[0];
+      throw new Error(`Tenant '${tenantId}' not found`);
     } catch (error: any) {
       const isNetworkErr = error?.code === 'ERR_NETWORK' || !error.response;
-      if (isNetworkErr) {
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         return this.getDemoTenant(tenantId);
       }
-
-      // If backend single endpoint returned 404, fallback to GET /tenants listing
-      if (error.response?.status === 404) {
-        try {
-          const listRes = await this.getTenants({ limit: 50 });
-          const match = listRes.data.find((t: TenantItem) => t.tenant_id === tenantId);
-          if (match) return match;
-        } catch {
-          // ignore fallback error and throw original
-        }
-      }
-
       throw new Error(extractErrorMessage(error));
     }
   },
@@ -94,82 +89,86 @@ export const tenantService = {
     }
 
     try {
-      const response = await apiClient.put<TenantItem>(`/tenants/${tenantId}`, payload);
+      const response = await apiClient.put<TenantItem>(`/tenants/${encodeURIComponent(tenantId)}`, {
+        tenant_name: payload.tenant_name,
+        description: payload.description,
+      });
       return response.data;
     } catch (error: any) {
       const isNetworkErr = error?.code === 'ERR_NETWORK' || !error.response;
-      if (isNetworkErr) {
-        return this.updateDemoTenant(tenantId, payload);
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
+        const current = this.getDemoTenant(tenantId);
+        const updated: TenantItem = {
+          ...current,
+          ...payload,
+          updated_at: new Date().toISOString(),
+        };
+        this.saveDemoTenant(updated);
+        return updated;
       }
       throw new Error(extractErrorMessage(error));
     }
   },
 
   /**
-   * Isolated demo tenant resolver: ensures Tenant A and Tenant B never share or leak state
+   * Delete tenant organization via DELETE /tenants/{tenant_id}
+   */
+  async deleteTenant(tenantId: string): Promise<{ message: string }> {
+    const response = await apiClient.delete<{ message: string }>(`/tenants/${encodeURIComponent(tenantId)}`);
+    return response.data;
+  },
+
+  /**
+   * Demo tenant retrieval fallback
    */
   getDemoTenant(tenantId: string): TenantItem {
-    const key = getDemoTenantKey(tenantId);
+    const defaults = DEMO_TENANT_DEFAULTS[tenantId] || {
+      tenant_name: 'RMS Dining Enterprise',
+      description: 'Enterprise multi-branch restaurant hospitality group.',
+    };
+
     if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem(key);
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // fallback to seed
-        }
+      try {
+        const key = getDemoTenantKey(tenantId);
+        const raw = localStorage.getItem(key);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {
+        console.warn('Could not read demo tenant from localStorage', e);
       }
     }
 
-    const seed = DEMO_TENANT_DEFAULTS[tenantId] || {
-      tenant_name: `${tenantId.replace('tenant-', '').toUpperCase()} Hospitality Group`,
-      description: `Executive culinary and restaurant operations for enterprise ${tenantId}.`,
-    };
-
-    const newTenant: TenantItem = {
+    return {
       tenant_id: tenantId,
-      tenant_name: seed.tenant_name || `${tenantId} Dining Enterprise`,
-      description: seed.description || null,
+      tenant_name: defaults.tenant_name || 'RMS Dining Enterprise',
+      description: defaults.description || 'Enterprise multi-branch restaurant hospitality group.',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(key, JSON.stringify(newTenant));
-    }
-
-    return newTenant;
   },
 
-  /**
-   * Isolated demo tenant update: modifies only the specific tenant's session document
-   */
-  updateDemoTenant(tenantId: string, payload: TenantUpdatePayload): TenantItem {
-    const current = this.getDemoTenant(tenantId);
-    const updated: TenantItem = {
-      ...current,
-      ...(payload.tenant_name !== undefined ? { tenant_name: payload.tenant_name.trim() } : {}),
-      ...(payload.description !== undefined ? { description: payload.description } : {}),
-      updated_at: new Date().toISOString(),
-    };
-
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(getDemoTenantKey(tenantId), JSON.stringify(updated));
+  saveDemoTenant(tenant: TenantItem): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const key = getDemoTenantKey(tenant.tenant_id);
+      localStorage.setItem(key, JSON.stringify(tenant));
+    } catch (e) {
+      console.warn('Could not save demo tenant to localStorage', e);
     }
-
-    return updated;
   },
 
-  /**
-   * Cleans up all tenant session data on logout to prevent cross-tenant leaks
-   */
   clearAllTenantData(): void {
     if (typeof window === 'undefined') return;
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const k = sessionStorage.key(i);
-      if (k && k.startsWith('rms_demo_tenant_')) {
-        sessionStorage.removeItem(k);
-      }
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('rms_demo_tenant_')) {
+          localStorage.removeItem(k);
+        }
+      });
+      TokenStorage.setCurrentTenantId(null);
+      TokenStorage.setCurrentRestaurantId(null);
+    } catch (e) {
+      console.warn('Could not clear tenant localStorage data', e);
     }
   },
 };

@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/common/Button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { resolveAvatarUrl } from '@/services/customer.service';
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -110,10 +111,13 @@ export const Navbar: React.FC = () => {
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-border/80 hover:border-primary/50 bg-surface transition-all text-xs text-foreground"
               >
-                {user.avatar ? (
+                {user.avatar && resolveAvatarUrl(user.avatar) ? (
                   <img
-                    src={user.avatar}
-                    alt={user.name || 'User'}
+                    src={resolveAvatarUrl(user.avatar)}
+                    alt=""
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
                     className="w-6 h-6 rounded-full object-cover border border-primary/40"
                   />
                 ) : (

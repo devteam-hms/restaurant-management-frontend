@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit3, Trash2, Store, MapPin, Star, ExternalLink } from 'lucide-react';
-import { restaurantService } from '@/services/restaurant.service';
+import { Plus, Edit3, Trash2, Store, MapPin, Star, ExternalLink, Upload, Image as ImageIcon } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+  fetchRestaurants,
+  createRestaurant,
+  updateRestaurant,
+  deleteRestaurant,
+} from '@/store/slices/restaurantSlice';
 import { RestaurantItem } from '@/types/restaurant';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
@@ -12,9 +18,20 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 
+const PRESET_RESTAURANT_IMAGES = [
+  { label: 'Biryani & Royal Rice', url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=800&q=80' },
+  { label: 'Artisan Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80' },
+  { label: 'Momo & Dumplings', url: 'https://images.unsplash.com/photo-1541696432-82c6da8ce7bf?auto=format&fit=crop&w=800&q=80' },
+  { label: 'Burgers & Grill', url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80' },
+  { label: 'Kebabs & Mughlai', url: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80' },
+  { label: 'Fine Dining Ambience', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80' },
+  { label: 'Cozy Cafe & Bakery', url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80' },
+];
+
 export const AdminRestaurantsPage: React.FC = () => {
-  const [restaurants, setRestaurants] = useState<RestaurantItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { items: restaurants, isLoading, isSaving } = useAppSelector((state) => state.restaurants);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<RestaurantItem | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -26,28 +43,40 @@ export const AdminRestaurantsPage: React.FC = () => {
   const [cuisine, setCuisine] = useState('');
   const [address, setAddress] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { success, error: toastError } = useToast();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const navigate = useNavigate();
 
-  const loadRestaurants = async () => {
-    setIsLoading(true);
-    try {
-      const res = await restaurantService.getRestaurants();
-      setRestaurants(res.data);
-    } catch (e: any) {
-      toastError('Failed to load restaurants', e.message);
-    } finally {
-      setIsLoading(false);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toastError('Invalid File Type', 'Please upload an image file (PNG, JPG, WEBP).');
+      return;
     }
+    if (file.size > 3 * 1024 * 1024) {
+      toastError('Image Too Large', 'Please choose an image smaller than 3MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImageUrl(reader.result);
+        success('Image Uploaded', 'Custom photo loaded. Click Save to persist.');
+      }
+    };
+    reader.onerror = () => {
+      toastError('Upload Failed', 'Failed to read image file.');
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
-    loadRestaurants();
-  }, []);
+    dispatch(fetchRestaurants());
+  }, [dispatch]);
 
   const openCreateModal = () => {
     setEditingRestaurant(null);
@@ -55,7 +84,7 @@ export const AdminRestaurantsPage: React.FC = () => {
     setDescription('');
     setCuisine('North Indian & Mughlai');
     setAddress('18 Park Street, Kolkata');
-    setImageUrl('https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=85');
+    setImageUrl('');
     setModalOpen(true);
   };
 
@@ -71,47 +100,52 @@ export const AdminRestaurantsPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
     try {
       if (editingRestaurant) {
-        await restaurantService.updateRestaurant(editingRestaurant.restaurant_id, {
-          restaurant_name: name,
-          description,
-          cuisine,
-          image: imageUrl,
-        });
+        await dispatch(
+          updateRestaurant({
+            id: editingRestaurant.restaurant_id,
+            payload: {
+              restaurant_name: name,
+              description,
+              cuisine,
+              image: imageUrl,
+            },
+          })
+        ).unwrap();
         success('Restaurant Updated', `${name} updated successfully.`);
       } else {
-        const activeTenantId = tenant?.tenant_id || user?.tenant_id || 'default';
-        await restaurantService.createRestaurant({
-          tenant_id: activeTenantId,
-          name,
-          description,
-          cuisine,
-          address,
-          image: imageUrl,
-        });
+        const activeTenantId = tenant?.tenant_id || user?.tenant_id;
+        if (!activeTenantId) {
+          throw new Error('No active tenant organization found. Please ensure you are signed in under an authorized tenant.');
+        }
+        await dispatch(
+          createRestaurant({
+            tenant_id: activeTenantId,
+            name,
+            description,
+            cuisine,
+            address,
+            image: imageUrl,
+          })
+        ).unwrap();
         success('Restaurant Created', `${name} registered under ${tenant?.tenant_name || activeTenantId}.`);
       }
       setModalOpen(false);
-      loadRestaurants();
     } catch (e: any) {
-      toastError('Operation Failed', e.message);
-    } finally {
-      setIsSaving(false);
+      toastError('Operation Failed', typeof e === 'string' ? e : e.message);
     }
   };
 
   const handleDelete = async () => {
     if (!deletingId) return;
     try {
-      await restaurantService.deleteRestaurant(deletingId);
+      await dispatch(deleteRestaurant(deletingId)).unwrap();
       success('Restaurant Removed', 'Restaurant deleted successfully.');
       setDeleteConfirmOpen(false);
       setDeletingId(null);
-      loadRestaurants();
     } catch (e: any) {
-      toastError('Delete Failed', e.message);
+      toastError('Delete Failed', typeof e === 'string' ? e : e.message);
     }
   };
 
@@ -128,7 +162,7 @@ export const AdminRestaurantsPage: React.FC = () => {
         }
       />
 
-      <div className="px-8 space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
@@ -146,9 +180,13 @@ export const AdminRestaurantsPage: React.FC = () => {
               >
                 <div className="relative h-48 overflow-hidden bg-surface-secondary">
                   <img
-                    src={rest.image || 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80'}
+                    src={rest.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80'}
                     alt={rest.restaurant_name}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80';
+                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent" />
                   {rest.rating && (
@@ -246,12 +284,98 @@ export const AdminRestaurantsPage: React.FC = () => {
             placeholder="18 Park Street, Kolkata"
           />
 
-          <Input
-            label="Hero Image URL"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://images.unsplash.com/..."
-          />
+          {/* Restaurant Cover Image & Live Preview */}
+          <div className="space-y-2">
+            <label className="block text-xs uppercase tracking-wider font-medium text-muted">
+              Restaurant Cover Image
+            </label>
+
+            {imageUrl ? (
+              <div className="relative h-44 rounded-xl overflow-hidden border border-border group bg-surface-secondary">
+                <img
+                  src={imageUrl}
+                  alt="Restaurant Preview"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80';
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload New</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setImageUrl('')}
+                    className="gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="h-32 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center cursor-pointer bg-surface-secondary/40 text-muted hover:text-foreground"
+              >
+                <Upload className="w-6 h-6 mb-1 text-primary/70" />
+                <span className="text-xs font-medium">Click to upload photo from your computer</span>
+                <span className="text-[10px] text-muted">PNG, JPG, WEBP up to 3MB</span>
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            {/* Quick Cuisine / Dish Presets */}
+            <div className="pt-1 space-y-1.5">
+              <span className="text-[11px] text-muted font-medium block">
+                Quick 1-Click Presets:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_RESTAURANT_IMAGES.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setImageUrl(preset.url)}
+                    className={`px-2.5 py-1 text-xs rounded-lg border transition-all ${
+                      imageUrl === preset.url
+                        ? 'bg-primary text-background font-semibold border-primary shadow-sm'
+                        : 'bg-surface-secondary text-muted hover:text-foreground border-border hover:border-primary/40'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom URL Input */}
+            <div className="pt-1">
+              <Input
+                label="Or Direct Image URL"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://images.unsplash.com/..."
+              />
+            </div>
+          </div>
 
           <div className="space-y-1.5">
             <label className="block text-xs uppercase tracking-wider font-medium text-muted">

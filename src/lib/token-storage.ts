@@ -4,6 +4,8 @@ const ACCESS_TOKEN_KEY = 'rms_access_token';
 const REFRESH_TOKEN_KEY = 'rms_refresh_token';
 const USER_KEY = 'rms_user';
 const SELECTED_ROLE_TYPE_KEY = 'rms_selected_role_type';
+const CURRENT_TENANT_ID_KEY = 'rms_current_tenant_id';
+const CURRENT_RESTAURANT_ID_KEY = 'rms_current_restaurant_id';
 
 export const TokenStorage = {
   getAccessToken(): string | null {
@@ -52,12 +54,41 @@ export const TokenStorage = {
     localStorage.setItem(SELECTED_ROLE_TYPE_KEY, type);
   },
 
+  getCurrentTenantId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(CURRENT_TENANT_ID_KEY);
+  },
+
+  setCurrentTenantId(tenantId: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (tenantId) {
+      localStorage.setItem(CURRENT_TENANT_ID_KEY, tenantId);
+    } else {
+      localStorage.removeItem(CURRENT_TENANT_ID_KEY);
+    }
+  },
+
+  getCurrentRestaurantId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(CURRENT_RESTAURANT_ID_KEY);
+  },
+
+  setCurrentRestaurantId(restaurantId: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (restaurantId) {
+      localStorage.setItem(CURRENT_RESTAURANT_ID_KEY, restaurantId);
+    } else {
+      localStorage.removeItem(CURRENT_RESTAURANT_ID_KEY);
+    }
+  },
+
   clearAll(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(SELECTED_ROLE_TYPE_KEY);
+    localStorage.removeItem(CURRENT_TENANT_ID_KEY);
+    localStorage.removeItem(CURRENT_RESTAURANT_ID_KEY);
   },
 };
-

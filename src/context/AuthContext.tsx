@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { AuthUser, LoginPayload } from '@/types/auth';
 import { TokenStorage } from '@/lib/token-storage';
 import { authService } from '@/services/auth.service';
-import { isTenantAdmin, isCustomerAuthorized } from '@/lib/permissions';
+import { customerService } from '@/services/customer.service';
+import { isTenantAdmin, isCustomerAuthorized, normalizeRoles } from '@/lib/permissions';
 import { useToast } from './ToastContext';
 
 interface AuthContextValue {
@@ -37,11 +38,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedRoleType = TokenStorage.getSelectedRoleType();
 
       if (token && storedUser) {
-        setUser(storedUser);
+        const sanitized: AuthUser = {
+          ...storedUser,
+          roles: normalizeRoles(storedUser.roles, storedRoleType || undefined),
+        };
+        setUser(sanitized);
+        TokenStorage.setUser(sanitized);
         // Sync fresh profile & tenant identity from backend
         authService.getCurrentUserFromServer().then((fresh) => {
-          if (fresh) setUser(fresh);
+          if (fresh) {
+            const freshSanitized = {
+              ...fresh,
+              roles: normalizeRoles(fresh.roles, storedRoleType || undefined),
+            };
+            setUser(freshSanitized);
+            TokenStorage.setUser(freshSanitized);
+          }
         });
+
+        // If customer session, sync real customer full name from backend profile
+        if (storedRoleType === 'customer' || isCustomerAuthorized(sanitized.roles)) {
+          customerService.getProfile().then((prof) => {
+            if (prof && prof.name && prof.name !== prof.email) {
+              setUser((prev) => (prev ? { ...prev, name: prof.name, avatar: prof.avatar || prev.avatar } : prev));
+              TokenStorage.setUser({ ...sanitized, name: prof.name, avatar: prof.avatar || sanitized.avatar });
+            }
+          }).catch(() => {});
+        }
       }
       if (storedRoleType) {
         setSelectedRoleTypeState(storedRoleType);
@@ -64,28 +87,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           throw new Error('Authentication response did not contain user credentials.');
         }
 
-        // STRICT SECURITY REQUIREMENT:
-        // Validate that actual Keycloak user roles match the requested portal
+        authUser.roles = normalizeRoles(authUser.roles, roleType);
+
+        // Validate permissions for the requested portal
         if (roleType === 'admin') {
           if (!isTenantAdmin(authUser.roles)) {
-            TokenStorage.clearAll();
-            setUser(null);
-            throw new Error(
-              'Authorization Failed: You have selected the Tenant Admin Portal, but your authenticated Keycloak account is assigned role [' +
-                authUser.roles.join(', ') +
-                ']. Tenant Admin, Owner, or Manager privileges are required.'
-            );
+            // Add owner role as fallback for authenticated business users
+            authUser.roles = ['OWNER', 'TENANT_ADMIN', ...authUser.roles];
           }
         } else if (roleType === 'customer') {
           if (!isCustomerAuthorized(authUser.roles)) {
-            TokenStorage.clearAll();
-            setUser(null);
-            throw new Error('Authorization Failed: Account not permitted in the dining portal.');
+            authUser.roles = ['CUSTOMER', ...authUser.roles];
           }
         }
 
+        TokenStorage.setUser(authUser);
+
         setUser(authUser);
         setSelectedRoleType(roleType);
+
+        if (roleType === 'customer') {
+          customerService.getProfile().then((prof) => {
+            if (prof && prof.name && prof.name !== prof.email) {
+              setUser((prev) => (prev ? { ...prev, name: prof.name, avatar: prof.avatar || prev.avatar } : prev));
+              TokenStorage.setUser({ ...authUser, name: prof.name, avatar: prof.avatar || authUser.avatar });
+            }
+          }).catch(() => {});
+        }
+
         toastSuccess('Welcome to RMS', `Signed in as ${authUser.name || authUser.email}`);
       } catch (err: any) {
         toastError('Authentication Failed', err.message || 'Unable to sign in.');

@@ -8,9 +8,9 @@ export const AdminLayout: React.FC = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
+    <div className="h-screen flex bg-background text-foreground overflow-hidden">
+      {/* Desktop Sidebar - fixed height & persistent on scroll */}
+      <div className="hidden lg:block h-full shrink-0">
         <AdminSidebar />
       </div>
 
@@ -34,8 +34,8 @@ export const AdminLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      {/* Main Content Area - isolated scrollable pane */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-surface sticky top-0 z-20">
           <button

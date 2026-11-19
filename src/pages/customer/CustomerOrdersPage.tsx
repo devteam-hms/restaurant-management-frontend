@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Eye, XCircle, Search, Filter } from 'lucide-react';
 import { orderService } from '@/services/order.service';
+import { branchService } from '@/services/branch.service';
 import { OrderItemResponseModel } from '@/types/order';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
@@ -23,8 +24,24 @@ export const CustomerOrdersPage: React.FC = () => {
   const loadOrders = async () => {
     setIsLoading(true);
     try {
-      const res = await orderService.getOrders({ page: 1, limit: 30 });
-      setOrders(res.data);
+      const [res, branchesRes] = await Promise.all([
+        orderService.getOrders({ page: 1, limit: 50 }),
+        branchService.getBranches({ limit: 100 }).catch(() => ({ data: [] })),
+      ]);
+
+      const branchMap = new Map<string, string>();
+      (branchesRes.data || []).forEach((b) => {
+        if (b.branch_id && b.branch_name) {
+          branchMap.set(b.branch_id, b.branch_name);
+        }
+      });
+
+      const enriched = (res.data || []).map((o) => ({
+        ...o,
+        branch_name: branchMap.get(o.branch_id) || o.branch_name || 'Dining Hall',
+      }));
+
+      setOrders(enriched);
     } catch (e: any) {
       toastError('Failed to load orders', e.message);
     } finally {
@@ -89,89 +106,91 @@ export const CustomerOrdersPage: React.FC = () => {
 
       {/* Orders Table */}
       <div className="rounded-2xl border border-border bg-surface overflow-hidden shadow-luxury">
-        <table className="w-full text-left text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-border/80 bg-surface-secondary/60 text-xs uppercase tracking-wider text-muted">
-              <th className="px-6 py-4 font-medium">Order Ref</th>
-              <th className="px-6 py-4 font-medium">Branch Location</th>
-              <th className="px-6 py-4 font-medium">Items</th>
-              <th className="px-6 py-4 font-medium">Total</th>
-              <th className="px-6 py-4 font-medium">Order Status</th>
-              <th className="px-6 py-4 font-medium">Payment</th>
-              <th className="px-6 py-4 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/40">
-            {isLoading ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-muted text-xs">
-                  Loading orders...
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border/80 bg-surface-secondary/60 text-[11px] uppercase tracking-wider text-muted">
+                <th className="px-3.5 py-3 font-medium whitespace-nowrap">Order Ref</th>
+                <th className="px-3.5 py-3 font-medium whitespace-nowrap">Branch Location</th>
+                <th className="px-3.5 py-3 font-medium whitespace-nowrap">Items</th>
+                <th className="px-3.5 py-3 font-medium whitespace-nowrap">Total</th>
+                <th className="px-3.5 py-3 font-medium whitespace-nowrap">Order Status</th>
+                <th className="px-3.5 py-3 font-medium whitespace-nowrap">Payment</th>
+                <th className="px-3.5 py-3 font-medium text-right whitespace-nowrap pr-4">Actions</th>
               </tr>
-            ) : filteredOrders.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-16 text-center text-muted font-serif italic">
-                  No orders recorded matching your filter.
-                </td>
-              </tr>
-            ) : (
-              filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-surface-secondary/40 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className="font-mono text-xs font-semibold text-primary">{order.id}</span>
-                    <p className="text-[10px] text-muted mt-0.5">{formatDate(order.created_at)}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-xs font-medium text-foreground">{order.branch_name || 'Kolkata — Park Street Flagship'}</p>
-                    {order.table_number && (
-                      <p className="text-[10px] text-muted mt-0.5">{order.table_number}</p>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-xs text-muted max-w-xs truncate">
-                    {order.items.map((i) => `${i.quantity}x ${i.menu_name}`).join(', ')}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-xs font-semibold text-foreground">
-                    {formatCurrency(order.total_amount)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <OrderStatusBadge status={order.order_status} />
-                  </td>
-                  <td className="px-6 py-4">
-                    <PaymentStatusBadge status={order.payment_status} />
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="px-2.5 py-1 text-xs"
-                        onClick={() => setSelectedOrder(order)}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Details</span>
-                      </Button>
-
-                      {['PLACED', 'CONFIRMED'].includes(order.order_status) && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          className="px-2.5 py-1 text-xs"
-                          onClick={() => {
-                            setOrderToCancel(order);
-                            setCancelModalOpen(true);
-                          }}
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Cancel</span>
-                        </Button>
-                      )}
-                    </div>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted text-xs">
+                    Loading orders...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center text-muted font-serif italic">
+                    No orders recorded matching your filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-surface-secondary/40 transition-colors">
+                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                      <span className="font-mono text-xs font-semibold text-primary">{order.id}</span>
+                      <p className="text-[10px] text-muted mt-0.5">{formatDate(order.created_at)}</p>
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                      <p className="text-xs font-medium text-foreground">{order.branch_name || 'Dining Hall'}</p>
+                      {order.table_number && (
+                        <p className="text-[10px] text-muted mt-0.5">{order.table_number}</p>
+                      )}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-xs text-muted max-w-[180px] truncate">
+                      {order.items.map((i) => `${i.quantity}x ${i.menu_name}`).join(', ')}
+                    </td>
+                    <td className="px-3.5 py-2.5 font-mono text-xs font-semibold text-foreground whitespace-nowrap">
+                      {formatCurrency(order.total_amount)}
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                      <OrderStatusBadge status={order.order_status} />
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                      <PaymentStatusBadge status={order.payment_status} />
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right whitespace-nowrap pr-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="px-2.5 py-1 text-[11px] h-7"
+                          onClick={() => setSelectedOrder(order)}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Details</span>
+                        </Button>
+
+                        {['PLACED', 'CONFIRMED'].includes(order.order_status) && (
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            className="px-2.5 py-1 text-[11px] h-7"
+                            onClick={() => {
+                              setOrderToCancel(order);
+                              setCancelModalOpen(true);
+                            }}
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Cancel</span>
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Order Details Modal */}
@@ -200,7 +219,7 @@ export const CustomerOrdersPage: React.FC = () => {
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted">Branch Location</p>
                 <p className="text-xs font-medium text-foreground mt-1">
-                  {selectedOrder.branch_name || 'The Bengal Table — Park Street Flagship'}
+                  {selectedOrder.branch_name || 'Dining Hall'}
                 </p>
               </div>
             </div>

@@ -18,11 +18,25 @@ export const orderService = {
    */
   async createOrder(payload: CreateOrderPayload): Promise<OrderItemResponseModel> {
     try {
-      const response = await apiClient.post<OrderItemResponseModel>('/orders', payload);
-      return response.data;
+      const response = await apiClient.post<OrderItemResponseModel>('/orders', {
+        branch_id: payload.branch_id,
+        items: payload.items.map(item => ({
+          menu_id: item.menu_id,
+          quantity: item.quantity,
+        })),
+      });
+
+      const orderData = response.data;
+      return {
+        ...orderData,
+        table_number: payload.table_number || orderData.table_number || 'Table 04',
+        special_instructions: payload.special_instructions || orderData.special_instructions,
+        subtotal: orderData.items?.reduce((acc, cur) => acc + (cur.subtotal || cur.unit_price * cur.quantity), 0) || orderData.total_amount,
+      };
     } catch (err: any) {
-      if (err.code === 'ERR_NETWORK' || !err.response) {
-        // Construct detailed order with backend-authoritative calculation
+      const isNetworkErr = err?.code === 'ERR_NETWORK' || !err.response;
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         const orderItems = payload.items.map(item => {
           const menuItem = INITIAL_MENUS.find(m => m.id === item.menu_id);
           const unit_price = menuItem?.price || 120.0;
@@ -54,7 +68,7 @@ export const orderService = {
           tax_amount: tax_amount,
           total_amount: total_amount,
           order_status: 'PLACED',
-          payment_status: 'PAID',
+          payment_status: 'PENDING',
           table_number: payload.table_number || 'Table 04',
           special_instructions: payload.special_instructions,
           created_at: new Date().toISOString(),
@@ -76,19 +90,38 @@ export const orderService = {
     try {
       const cleanParams: Record<string, any> = {
         page: params.page || 1,
-        limit: params.limit || 10,
+        limit: params.limit || 50,
       };
       if (params.branch_id) cleanParams.branch_id = params.branch_id;
       if (params.customer_id) cleanParams.customer_id = params.customer_id;
       if (params.order_status) cleanParams.order_status = params.order_status;
       if (params.payment_status) cleanParams.payment_status = params.payment_status;
+      if (params.start_date) cleanParams.start_date = params.start_date;
+      if (params.end_date) cleanParams.end_date = params.end_date;
 
       const response = await apiClient.get<PaginatedResponse<OrderItemResponseModel>>('/orders', {
         params: cleanParams,
       });
-      return response.data;
+
+      const hydrated = (response.data.data || []).map((o) => ({
+        ...o,
+        subtotal: o.items?.reduce((acc, cur) => acc + (cur.subtotal || cur.unit_price * cur.quantity), 0) || o.total_amount,
+      }));
+
+      const totalCount =
+        (response.data as any).pagination?.total_records ??
+        response.data.total ??
+        hydrated.length;
+
+      return {
+        ...response.data,
+        data: hydrated,
+        total: totalCount,
+      };
     } catch (err: any) {
-      if (err.code === 'ERR_NETWORK' || !err.response) {
+      const isNetworkErr = err?.code === 'ERR_NETWORK' || !err.response;
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         let filtered = ordersCache;
         if (params.branch_id) {
           filtered = filtered.filter(o => o.branch_id === params.branch_id);
@@ -98,9 +131,6 @@ export const orderService = {
         }
         if (params.order_status) {
           filtered = filtered.filter(o => o.order_status === params.order_status);
-        }
-        if (params.payment_status) {
-          filtered = filtered.filter(o => o.payment_status === params.payment_status);
         }
         return {
           data: filtered,
@@ -115,17 +145,51 @@ export const orderService = {
   },
 
   /**
-   * Get specific order details by ID
+   * Retrieve orders for a specific branch
+   * GET /orders/branch/{branch_id}
+   */
+  async getOrdersByBranch(
+    branchId: string,
+    params: { page?: number; limit?: number; order_status?: string } = {}
+  ): Promise<PaginatedResponse<OrderItemResponseModel>> {
+    try {
+      const response = await apiClient.get<PaginatedResponse<OrderItemResponseModel>>(
+        `/orders/branch/${encodeURIComponent(branchId)}`,
+        {
+          params: {
+            page: params.page || 1,
+            limit: params.limit || 50,
+            ...(params.order_status ? { order_status: params.order_status } : {}),
+          },
+        }
+      );
+      return response.data;
+    } catch (err: any) {
+      const isNetworkErr = err?.code === 'ERR_NETWORK' || !err.response;
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
+        return this.getOrders({ branch_id: branchId });
+      }
+      throw new Error(extractErrorMessage(err));
+    }
+  },
+
+  /**
+   * Get single order by ID
    * GET /orders/{order_id}
    */
   async getOrderById(orderId: string): Promise<OrderItemResponseModel> {
     try {
-      const response = await apiClient.get<OrderItemResponseModel>(
-        `/orders/${encodeURIComponent(orderId)}`
-      );
-      return response.data;
+      const response = await apiClient.get<OrderItemResponseModel>(`/orders/${encodeURIComponent(orderId)}`);
+      const o = response.data;
+      return {
+        ...o,
+        subtotal: o.items?.reduce((acc, cur) => acc + (cur.subtotal || cur.unit_price * cur.quantity), 0) || o.total_amount,
+      };
     } catch (err: any) {
-      if (err.code === 'ERR_NETWORK' || !err.response) {
+      const isNetworkErr = err?.code === 'ERR_NETWORK' || !err.response;
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         const found = ordersCache.find(o => o.id === orderId);
         if (found) return found;
       }
@@ -134,27 +198,31 @@ export const orderService = {
   },
 
   /**
-   * Update order status, payment status, or items
+   * Update order status or lifecycle state
    * PUT /orders/{order_id}
    */
-  async updateOrder(
-    orderId: string,
-    payload: UpdateOrderPayload
-  ): Promise<OrderItemResponseModel> {
+  async updateOrder(orderId: string, payload: UpdateOrderPayload): Promise<OrderItemResponseModel> {
     try {
       const response = await apiClient.put<OrderItemResponseModel>(
         `/orders/${encodeURIComponent(orderId)}`,
-        payload
+        {
+          order_status: payload.order_status,
+          payment_status: payload.payment_status,
+          items: payload.items,
+          cancellation_reason: payload.cancellation_reason,
+        }
       );
       return response.data;
     } catch (err: any) {
-      if (err.code === 'ERR_NETWORK' || !err.response) {
+      const isNetworkErr = err?.code === 'ERR_NETWORK' || !err.response;
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         const idx = ordersCache.findIndex(o => o.id === orderId);
         if (idx !== -1) {
-          const { items: _, ...restPayload } = payload;
           ordersCache[idx] = {
             ...ordersCache[idx],
-            ...restPayload,
+            order_status: payload.order_status || ordersCache[idx].order_status,
+            payment_status: payload.payment_status || ordersCache[idx].payment_status,
             updated_at: new Date().toISOString(),
           };
           return ordersCache[idx];
@@ -165,28 +233,25 @@ export const orderService = {
   },
 
   /**
-   * Cancel an order
-   * DELETE /orders/{order_id}
+   * Soft cancel order via DELETE /orders/{order_id}
    */
-  async cancelOrder(
-    orderId: string,
-    reason?: string
-  ): Promise<CancelOrderResponse> {
+  async cancelOrder(orderId: string, cancellationReason?: string): Promise<CancelOrderResponse> {
     try {
       const response = await apiClient.delete<CancelOrderResponse>(
         `/orders/${encodeURIComponent(orderId)}`,
         {
-          params: reason ? { cancellation_reason: reason } : undefined,
+          params: cancellationReason ? { cancellation_reason: cancellationReason } : undefined,
         }
       );
       return response.data;
     } catch (err: any) {
-      if (err.code === 'ERR_NETWORK' || !err.response) {
+      const isNetworkErr = err?.code === 'ERR_NETWORK' || !err.response;
+      const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+      if (isNetworkErr && enableMock) {
         const idx = ordersCache.findIndex(o => o.id === orderId);
         if (idx !== -1) {
           ordersCache[idx].order_status = 'CANCELLED';
-          ordersCache[idx].cancellation_reason = reason || 'Customer request';
-          ordersCache[idx].updated_at = new Date().toISOString();
+          ordersCache[idx].cancellation_reason = cancellationReason || 'Customer requested';
         }
         return {
           message: 'Order cancelled successfully',

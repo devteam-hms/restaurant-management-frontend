@@ -35,8 +35,8 @@ export default {
         warning: 'rgb(var(--warning) / <alpha-value>)',
       },
       fontFamily: {
-        serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        serif: ['var(--font-family-base)', 'sans-serif'],
+        sans: ['var(--font-family-base)', 'sans-serif'],
       },
       boxShadow: {
         'luxury': '0 15px 35px -10px rgba(0, 0, 0, 0.35), 0 0 1px 1px rgb(var(--primary) / 0.1)',

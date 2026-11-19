@@ -1,10 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* ==========================================================================
+     GLOBAL MASTER FONT CONFIGURATION
+     Changing --font-family-base here instantly updates the font across the entire app
+     ========================================================================== */
+  --font-family-base: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
 @layer base {
+
   /* ==========================================================================
      DARK THEME (Default when .dark or [data-theme="dark"])
      Near-black backgrounds, champagne gold accents, warm off-white typography
@@ -12,26 +21,42 @@
   :root,
   .dark,
   [data-theme='dark'] {
-    --background: 12 11 10;           /* #0c0b0a Warm Near-Black */
-    --foreground: 245 240 232;        /* #f5f0e8 Warm Off-White */
-    --primary: 212 168 83;            /* #d4a853 Champagne Gold */
-    --primary-hover: 227 187 114;     /* #e3bb72 */
-    --primary-dark: 179 138 57;       /* #b38a39 */
-    --primary-foreground: 12 11 10;   /* Charcoal black on gold button */
+    --background: 12 11 10;
+    /* #0c0b0a Warm Near-Black */
+    --foreground: 245 240 232;
+    /* #f5f0e8 Warm Off-White */
+    --primary: 212 168 83;
+    /* #d4a853 Champagne Gold */
+    --primary-hover: 227 187 114;
+    /* #e3bb72 */
+    --primary-dark: 179 138 57;
+    /* #b38a39 */
+    --primary-foreground: 12 11 10;
+    /* Charcoal black on gold button */
 
-    --surface: 21 19 16;              /* #151310 Dark Surface */
-    --surface-secondary: 28 25 21;    /* #1c1915 Dark Secondary */
-    --surface-tertiary: 36 32 27;     /* #24201b Dark Tertiary */
+    --surface: 21 19 16;
+    /* #151310 Dark Surface */
+    --surface-secondary: 28 25 21;
+    /* #1c1915 Dark Secondary */
+    --surface-tertiary: 36 32 27;
+    /* #24201b Dark Tertiary */
 
-    --muted: 164 154 138;             /* #a49a8a Muted Typography */
-    --muted-dark: 110 101 88;         /* #6e6558 */
+    --muted: 164 154 138;
+    /* #a49a8a Muted Typography */
+    --muted-dark: 110 101 88;
+    /* #6e6558 */
 
-    --border: 48 42 33;               /* #302a21 Subtle Dark Border */
-    --border-subtle: 34 30 24;        /* #221e18 */
+    --border: 48 42 33;
+    /* #302a21 Subtle Dark Border */
+    --border-subtle: 34 30 24;
+    /* #221e18 */
 
-    --success: 110 155 120;           /* #6e9b78 Vintage Sage */
-    --danger: 198 107 99;             /* #c66b63 Terracotta Rose */
-    --warning: 217 155 66;            /* #d99b42 Ochre Amber */
+    --success: 110 155 120;
+    /* #6e9b78 Vintage Sage */
+    --danger: 198 107 99;
+    /* #c66b63 Terracotta Rose */
+    --warning: 217 155 66;
+    /* #d99b42 Ochre Amber */
 
     --glass-bg: rgba(21, 19, 16, 0.75);
     --glass-border: rgba(48, 42, 33, 0.7);
@@ -49,26 +74,42 @@
      ========================================================================== */
   .light,
   [data-theme='light'] {
-    --background: 251 249 245;        /* #fbf9f5 Warm Ivory */
-    --foreground: 26 24 21;           /* #1a1815 Charcoal Typography (High Contrast) */
-    --primary: 184 138 54;            /* #b88a36 Rich Antique Champagne Gold */
-    --primary-hover: 166 121 41;      /* #a67929 */
-    --primary-dark: 143 102 30;       /* #8f661e */
-    --primary-foreground: 255 255 255;/* Crisp white on gold button */
+    --background: 251 249 245;
+    /* #fbf9f5 Warm Ivory */
+    --foreground: 26 24 21;
+    /* #1a1815 Charcoal Typography (High Contrast) */
+    --primary: 184 138 54;
+    /* #b88a36 Rich Antique Champagne Gold */
+    --primary-hover: 166 121 41;
+    /* #a67929 */
+    --primary-dark: 143 102 30;
+    /* #8f661e */
+    --primary-foreground: 255 255 255;
+    /* Crisp white on gold button */
 
-    --surface: 243 239 230;           /* #f3efe6 Warm Beige Surface */
-    --surface-secondary: 236 229 216; /* #ece5d8 Muted Beige */
-    --surface-tertiary: 226 217 200;  /* #e2d9c8 Elevated Beige */
+    --surface: 243 239 230;
+    /* #f3efe6 Warm Beige Surface */
+    --surface-secondary: 236 229 216;
+    /* #ece5d8 Muted Beige */
+    --surface-tertiary: 226 217 200;
+    /* #e2d9c8 Elevated Beige */
 
-    --muted: 107 99 87;               /* #6b6357 Charcoal Muted (5.5:1 Contrast AA/AAA) */
-    --muted-dark: 72 66 57;           /* #484239 */
+    --muted: 107 99 87;
+    /* #6b6357 Charcoal Muted (5.5:1 Contrast AA/AAA) */
+    --muted-dark: 72 66 57;
+    /* #484239 */
 
-    --border: 222 213 197;            /* #ded5c5 Soft Beige Border */
-    --border-subtle: 233 227 215;     /* #e9e3d7 */
+    --border: 222 213 197;
+    /* #ded5c5 Soft Beige Border */
+    --border-subtle: 233 227 215;
+    /* #e9e3d7 */
 
-    --success: 60 122 74;             /* #3c7a4a Forest Sage */
-    --danger: 184 71 61;              /* #b8473d Wine Terracotta */
-    --warning: 184 119 35;            /* #b87723 Warm Amber */
+    --success: 60 122 74;
+    /* #3c7a4a Forest Sage */
+    --danger: 184 71 61;
+    /* #b8473d Wine Terracotta */
+    --warning: 184 119 35;
+    /* #b87723 Warm Amber */
 
     --glass-bg: rgba(243, 239, 230, 0.85);
     --glass-border: rgba(222, 213, 197, 0.85);
@@ -88,15 +129,33 @@
   transition-timing-function: ease-out;
 }
 
+html,
+body,
+#root,
+button,
+input,
+select,
+textarea,
+optgroup {
+  font-family: var(--font-family-base);
+}
+
 body {
   background-color: rgb(var(--background) / 1);
   color: rgb(var(--foreground) / 1);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family-base);
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4, .font-serif {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-serif,
+.font-sans {
+  font-family: var(--font-family-base);
 }
 
 /* Custom Luxury Scrollbars */
@@ -104,13 +163,16 @@ h1, h2, h3, h4, .font-serif {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
@@ -142,4 +204,40 @@ h1, h2, h3, h4, .font-serif {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-elevated-border);
+}
+
+/* Hide scrollbar for clean horizontal tab lists */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   GLOBAL SELECT & DROPDOWN STYLING
+   Enlarges dropdown boxes, items, and option lists across all pages
+   ========================================================================== */
+select {
+  font-size: 0.9375rem;
+  /* 15px */
+  line-height: 1.5;
+  cursor: pointer;
+  min-height: 2.75rem;
+  /* 44px for easy clicking */
+}
+
+select option {
+  background-color: #1c1915;
+  color: #f5f0e8;
+  padding: 14px 18px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.light select option,
+[data-theme='light'] select option {
+  background-color: #f3efe6;
+  color: #1a1815;
 }

@@ -75,3 +75,20 @@ export interface CancelOrderResponse {
   order_status: OrderStatus;
 }
 
+export const VALID_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PLACED: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PREPARING", "CANCELLED"],
+  PREPARING: ["READY", "CANCELLED"],
+  READY: ["COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+export const PAYMENT_STATUS_OPTIONS: PaymentStatus[] = [
+  "PENDING",
+  "PAID",
+  "FAILED",
+  "REFUNDED",
+];
+
+

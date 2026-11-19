@@ -74,7 +74,8 @@ export const AdminSettingsPage: React.FC = () => {
         subtitle="Manage enterprise tenant parameters, Keycloak RBAC identity, and multi-tenant scoping"
       />
 
-      <div className="px-8 space-y-8 max-w-5xl">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="space-y-6 sm:space-y-8 max-w-5xl mx-auto w-full">
         {/* 1. TENANT ORGANIZATION PROFILE CARD */}
         {isLoading && !tenant ? (
           /* Loading Skeleton - avoids showing any misleading default tenant name */
@@ -302,6 +303,7 @@ export const AdminSettingsPage: React.FC = () => {
               <strong className="text-primary font-mono">{tenant?.tenant_id || tenantId || 'Authenticated Tenant'}</strong>. Cross-tenant queries are rejected by the backend with HTTP 403 Forbidden.
             </p>
           </div>
+        </div>
         </div>
       </div>
     </div>

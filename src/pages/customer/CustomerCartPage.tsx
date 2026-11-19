@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'motion/react';
 import {
   Trash2,
   Plus,
@@ -12,18 +11,18 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import { orderService } from '@/services/order.service';
-import { billService } from '@/services/bill.service';
 import { useToast } from '@/context/ToastContext';
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
 import { formatCurrency } from '@/lib/utils';
+import { useAppDispatch } from '@/store/hooks';
+import { createOrder } from '@/store/slices/orderSlice';
 
 export const CustomerCartPage: React.FC = () => {
+  const dispatch = useAppDispatch();
   const { items, branchId, updateQuantity, removeItem, clearCart, subtotal, estimatedTax, total } =
     useCart();
-  const [tableNumber, setTableNumber] = useState('Table 4 — Heritage Hall');
-  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [tableNumber] = useState('Table 01');
+  const [specialInstructions] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccessId, setOrderSuccessId] = useState<string | null>(null);
 
@@ -38,28 +37,24 @@ export const CustomerCartPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // 1. Dispatch order to backend Order API
-      const newOrder = await orderService.createOrder({
-        branch_id: branchId,
-        items: items.map((i) => ({
-          menu_id: i.menu.id,
-          quantity: i.quantity,
-        })),
-        table_number: tableNumber,
-        special_instructions: specialInstructions,
-      });
-
-      // 2. Automatically generate formal bill for this order via backend Bill API
-      await billService.generateBill({
-        order_id: newOrder.id,
-        notes: specialInstructions,
-      });
+      // 1. Dispatch order to backend Order API via Redux Toolkit Thunk
+      const newOrder = await dispatch(
+        createOrder({
+          branch_id: branchId,
+          items: items.map((i) => ({
+            menu_id: i.menu.id,
+            quantity: i.quantity,
+          })),
+          table_number: tableNumber,
+          special_instructions: specialInstructions,
+        })
+      ).unwrap();
 
       clearCart();
       setOrderSuccessId(newOrder.id);
       success('Order Placed Successfully', `Order #${newOrder.id} dispatched to the kitchen.`);
     } catch (err: any) {
-      toastError('Order Placement Failed', err.message || 'Unable to communicate with kitchen.');
+      toastError('Order Placement Failed', typeof err === 'string' ? err : err?.message || 'Unable to communicate with kitchen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -133,8 +128,9 @@ export const CustomerCartPage: React.FC = () => {
                 {items.length} Item{items.length > 1 ? 's' : ''} Selected
               </span>
               <button
+                type="button"
                 onClick={clearCart}
-                className="text-xs text-danger hover:underline flex items-center gap-1"
+                className="text-xs text-danger hover:underline flex items-center gap-1.5 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Clear Cart</span>
@@ -144,13 +140,17 @@ export const CustomerCartPage: React.FC = () => {
             <div className="divide-y divide-border/40">
               {items.map((item) => (
                 <div key={item.menu.id} className="py-4 first:pt-0 last:pb-0 flex items-center gap-4">
-                  <img
-                    src={item.menu.image || 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80'}
-                    alt={item.menu.menu_name}
-                    className="w-18 h-18 rounded-xl object-cover shrink-0 border border-border/80 bg-surface-secondary"
-                  />
+                  {/* Fixed-dimension Image Container */}
+                  <div className="w-20 h-20 min-w-[80px] max-w-[80px] rounded-xl overflow-hidden shrink-0 border border-border/80 bg-surface-secondary">
+                    <img
+                      src={item.menu.image || 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80'}
+                      alt={item.menu.menu_name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
 
-                  <div className="flex-1 min-w-0">
+                  {/* Item Description */}
+                  <div className="flex-1 min-w-0 pr-2">
                     <h4 className="font-serif text-lg font-medium text-foreground truncate">
                       {item.menu.menu_name}
                     </h4>
@@ -159,59 +159,65 @@ export const CustomerCartPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Quantity Controls */}
-                  <div className="flex items-center gap-2.5 bg-surface-secondary border border-border rounded-lg px-2 py-1">
+                  {/* Controls & Price - Guaranteed shrink-0 to prevent clipping */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {/* Quantity Stepper */}
+                    <div className="flex items-center gap-1 bg-surface-secondary border border-border/80 rounded-lg px-2 py-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.menu.id, -1)}
+                        className="p-1 rounded text-muted hover:text-foreground hover:bg-surface transition-colors"
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="font-mono text-xs font-semibold px-2 min-w-[22px] text-center text-foreground">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.menu.id, 1)}
+                        className="p-1 rounded text-muted hover:text-foreground hover:bg-surface transition-colors"
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Total for this line item */}
+                    <div className="text-right min-w-[75px] shrink-0">
+                      <span className="font-mono text-sm font-semibold text-foreground">
+                        {formatCurrency(item.menu.price * item.quantity)}
+                      </span>
+                    </div>
+
+                    {/* Delete item button */}
                     <button
-                      onClick={() => updateQuantity(item.menu.id, -1)}
-                      className="p-1 text-muted hover:text-foreground transition-colors"
-                      aria-label="Decrease quantity"
+                      type="button"
+                      onClick={() => removeItem(item.menu.id)}
+                      className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors shrink-0"
+                      aria-label="Remove item"
+                      title="Remove item"
                     >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="font-mono text-xs font-semibold px-1">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.menu.id, 1)}
-                      className="p-1 text-muted hover:text-foreground transition-colors"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-
-                  <div className="text-right min-w-[70px]">
-                    <span className="font-mono text-sm font-semibold text-foreground">
-                      {formatCurrency(item.menu.price * item.quantity)}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => removeItem(item.menu.id)}
-                    className="p-1.5 text-muted hover:text-danger rounded-md transition-colors"
-                    aria-label="Remove item"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Dining Table & Service Notes */}
-          <div className="rounded-2xl border border-border bg-surface p-6 shadow-luxury space-y-4">
-            <h3 className="font-serif text-xl font-normal text-foreground">Dining Details & Notes</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Table Number / Area"
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-                placeholder="e.g. Table 4 or Private Dining Hall"
-              />
-              <Input
-                label="Special Requests / Preferences"
-                value={specialInstructions}
-                onChange={(e) => setSpecialInstructions(e.target.value)}
-                placeholder="e.g. Medium spice level, extra Kasundi, no coriander"
-              />
+            {/* Bottom Actions */}
+            <div className="pt-4 border-t border-border/50 flex items-center justify-between text-xs">
+              <Link
+                to="/customer/explore"
+                className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add More Dishes</span>
+              </Link>
+              <span className="text-muted text-[11px]">
+                Dispatched directly to the kitchen upon placement
+              </span>
             </div>
           </div>
         </div>

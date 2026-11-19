@@ -37,8 +37,16 @@ export const RestaurantDetailPage: React.FC = () => {
         if (branchRes.data.length > 0) {
           const firstBranchId = branchRes.data[0].branch_id;
           setSelectedBranchId(firstBranchId);
-          const menuRes = await menuService.getMenusByBranch(firstBranchId);
-          setMenus(menuRes.data);
+          try {
+            const menuRes = await menuService.getMenusByBranch(firstBranchId, { limit: 100 });
+            const branchItems = (menuRes.data || []).filter(
+              (m) => String(m.branch_id) === String(firstBranchId)
+            );
+            setMenus(branchItems);
+          } catch (menuErr) {
+            console.error('Error fetching initial branch menus', menuErr);
+            setMenus([]);
+          }
         }
       } catch (e) {
         console.error('Error fetching restaurant details', e);
@@ -50,12 +58,18 @@ export const RestaurantDetailPage: React.FC = () => {
   }, [id]);
 
   const handleBranchChange = async (bId: string) => {
+    if (bId === selectedBranchId && menus.length > 0) return;
     setSelectedBranchId(bId);
+    setMenus([]);
     try {
-      const menuRes = await menuService.getMenusByBranch(bId);
-      setMenus(menuRes.data);
+      const menuRes = await menuService.getMenusByBranch(bId, { limit: 100 });
+      const branchItems = (menuRes.data || []).filter(
+        (m) => String(m.branch_id) === String(bId)
+      );
+      setMenus(branchItems);
     } catch (e) {
       console.error('Error fetching branch menu', e);
+      setMenus([]);
     }
   };
 
