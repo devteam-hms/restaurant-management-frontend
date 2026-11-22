@@ -19,6 +19,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function parseJwtPayload(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -33,6 +49,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Initialize from storage on mount
   useEffect(() => {
     try {
+      // Check if incoming query parameter has token from customer registration / menu redirect
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const incomingToken = urlParams.get('token') || urlParams.get('access_token');
+        const incomingRefresh = urlParams.get('refresh_token');
+
+        if (incomingToken) {
+          TokenStorage.setAccessToken(incomingToken);
+          if (incomingRefresh) TokenStorage.setRefreshToken(incomingRefresh);
+          TokenStorage.setSelectedRoleType('customer');
+
+          const payload = parseJwtPayload(incomingToken);
+          if (payload) {
+            const clientRoles: string[] = [];
+            if (payload.resource_access) {
+              Object.values(payload.resource_access).forEach((entry: any) => {
+                if (entry && Array.isArray(entry.roles)) clientRoles.push(...entry.roles);
+              });
+            }
+            const realmRoles: string[] = payload.realm_access?.roles || [];
+            const directRoles: string[] = payload.roles || [];
+            const allRoles = Array.from(new Set([...clientRoles, ...realmRoles, ...directRoles]));
+
+            const userObj: AuthUser = {
+              id: payload.sub || null,
+              keycloak_id: payload.sub || '',
+              email: payload.email || null,
+              username: payload.preferred_username || null,
+              name: payload.name || payload.preferred_username || (payload.email ? payload.email.split('@')[0] : 'Customer'),
+              roles: allRoles.length ? allRoles : ['CUSTOMER'],
+            };
+            TokenStorage.setUser(userObj);
+          }
+
+          // Clean URL query parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+
       const storedUser = TokenStorage.getUser();
       const token = TokenStorage.getAccessToken();
       const storedRoleType = TokenStorage.getSelectedRoleType();
