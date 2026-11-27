@@ -151,9 +151,9 @@ export const BranchQRManagerCard: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const qrImageUrl = selectedBranchId
+  const qrImageUrl = qrDetails?.qr_preview_url || (selectedBranchId
     ? branchService.getBranchQRImageUrl(selectedBranchId)
-    : '';
+    : '');
 
   const isQrActive = Boolean(qrDetails?.public_menu_code);
 

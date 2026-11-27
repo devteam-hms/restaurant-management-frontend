@@ -13,7 +13,25 @@ import { INITIAL_BRANCHES } from './mockData';
 let branchesCache = [...INITIAL_BRANCHES];
 
 const BRANCH_PHONE_STORAGE_KEY = 'rms_branch_phones';
+const BRANCH_QR_STORAGE_KEY_PREFIX = 'rms_branch_qr_';
 const inMemoryPhoneCache: Record<string, string> = {};
+
+export function getStoredBranchQR(branchId: string): BranchQRDetails | null {
+  if (!branchId || typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(`${BRANCH_QR_STORAGE_KEY_PREFIX}${branchId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStoredBranchQR(branchId: string, details: BranchQRDetails): void {
+  if (!branchId || typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`${BRANCH_QR_STORAGE_KEY_PREFIX}${branchId}`, JSON.stringify(details));
+  } catch {}
+}
 
 export function getStoredPhones(): Record<string, string> {
   const result: Record<string, string> = { ...inMemoryPhoneCache };
@@ -307,14 +325,43 @@ export const branchService = {
    * GET /branches/{branch_id}/qr
    */
   async getBranchQR(branchId: string): Promise<BranchQRResponse> {
+    const isMockBranch = branchId.startsWith('branch-') || branchId.startsWith('mock-');
+    const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+
     try {
-      const response = await apiClient.get<BranchQRResponse>(
-        `/branches/${encodeURIComponent(branchId)}/qr`
-      );
-      return response.data;
+      if (!isMockBranch) {
+        const response = await apiClient.get<BranchQRResponse>(
+          `/branches/${encodeURIComponent(branchId)}/qr`
+        );
+        return response.data;
+      }
     } catch (err: any) {
-      throw new Error(extractErrorMessage(err));
+      if (!enableMock && !isMockBranch) {
+        throw new Error(extractErrorMessage(err));
+      }
     }
+
+    if (enableMock || isMockBranch) {
+      const stored = getStoredBranchQR(branchId);
+      if (stored) {
+        return { success: true, data: stored };
+      }
+      const branchMatch = branchesCache.find((b) => b.branch_id === branchId);
+      return {
+        success: true,
+        data: {
+          branch_id: branchId,
+          branch_name: branchMatch?.branch_name || 'Branch',
+          public_menu_code: null,
+          menu_url: null,
+          qr_status: 'not_generated',
+          qr_generated_at: null,
+          qr_preview_url: null,
+        },
+      };
+    }
+
+    throw new Error('Branch QR not found');
   },
 
   /**
@@ -325,18 +372,65 @@ export const branchService = {
     branchId: string,
     regenerate: boolean = false
   ): Promise<BranchQRResponse> {
+    const isMockBranch = branchId.startsWith('branch-') || branchId.startsWith('mock-');
+    const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+
     try {
-      const response = await apiClient.post<BranchQRResponse>(
-        `/branches/${encodeURIComponent(branchId)}/qr`,
-        null,
-        {
-          params: { regenerate },
-        }
-      );
-      return response.data;
+      if (!isMockBranch) {
+        const response = await apiClient.post<BranchQRResponse>(
+          `/branches/${encodeURIComponent(branchId)}/qr`,
+          null,
+          {
+            params: { regenerate },
+          }
+        );
+        return response.data;
+      }
     } catch (err: any) {
-      throw new Error(extractErrorMessage(err));
+      if (!enableMock && !isMockBranch) {
+        throw new Error(extractErrorMessage(err));
+      }
     }
+
+    if (enableMock || isMockBranch) {
+      const existing = getStoredBranchQR(branchId);
+      if (existing?.public_menu_code && !regenerate) {
+        return {
+          success: true,
+          message: 'Branch QR code retrieved successfully',
+          data: existing,
+        };
+      }
+
+      const branchMatch = branchesCache.find((b) => b.branch_id === branchId);
+      const randomSuffix = Math.random().toString(36).substring(2, 9);
+      const code = `br_${randomSuffix}`;
+      const customerBaseUrl = 'http://localhost:5173';
+      const menuUrl = `${customerBaseUrl}/menu/${code}`;
+      const previewUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(menuUrl)}`;
+
+      const newQrData: BranchQRDetails = {
+        branch_id: branchId,
+        branch_name: branchMatch?.branch_name || 'Branch',
+        public_menu_code: code,
+        menu_url: menuUrl,
+        qr_status: 'active',
+        qr_generated_at: new Date().toISOString(),
+        qr_preview_url: previewUrl,
+      };
+
+      saveStoredBranchQR(branchId, newQrData);
+
+      return {
+        success: true,
+        message: regenerate
+          ? 'New QR code generated successfully'
+          : 'Branch QR code generated successfully',
+        data: newQrData,
+      };
+    }
+
+    throw new Error('Failed to generate branch QR code');
   },
 
   /**
@@ -344,26 +438,57 @@ export const branchService = {
    * GET /branches/{branch_id}/qr/download
    */
   async downloadBranchQR(branchId: string, branchName: string): Promise<void> {
-    try {
-      const response = await apiClient.get(
-        `/branches/${encodeURIComponent(branchId)}/qr/download`,
-        {
-          responseType: 'blob',
-        }
-      );
+    const isMockBranch = branchId.startsWith('branch-') || branchId.startsWith('mock-');
+    const enableMock = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
 
-      const blob = new Blob([response.data], { type: 'image/png' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const cleanName = branchName.replace(/[^a-zA-Z0-9_\-]/g, '_');
-      link.download = `qr_${cleanName}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+    try {
+      if (!isMockBranch) {
+        const response = await apiClient.get(
+          `/branches/${encodeURIComponent(branchId)}/qr/download`,
+          {
+            responseType: 'blob',
+          }
+        );
+
+        const blob = new Blob([response.data], { type: 'image/png' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const cleanName = branchName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+        link.download = `qr_${cleanName}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        return;
+      }
     } catch (err: any) {
-      throw new Error(extractErrorMessage(err));
+      if (!enableMock && !isMockBranch) {
+        throw new Error(extractErrorMessage(err));
+      }
+    }
+
+    if (enableMock || isMockBranch) {
+      const stored = getStoredBranchQR(branchId);
+      const menuUrl = stored?.menu_url || `http://localhost:5173/menu/br_${branchId}`;
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(menuUrl)}`;
+      try {
+        const res = await fetch(qrApiUrl);
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const cleanName = branchName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+        link.download = `qr_${cleanName}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        return;
+      } catch {
+        window.open(qrApiUrl, '_blank');
+        return;
+      }
     }
   },
 
@@ -371,6 +496,10 @@ export const branchService = {
    * Get direct preview URL for the QR code image
    */
   getBranchQRImageUrl(branchId: string): string {
+    const stored = getStoredBranchQR(branchId);
+    if (stored?.qr_preview_url) {
+      return stored.qr_preview_url;
+    }
     return `${API_BASE_URL}/branches/${encodeURIComponent(branchId)}/qr/preview`;
   },
 };

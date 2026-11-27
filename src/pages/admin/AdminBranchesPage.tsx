@@ -477,7 +477,7 @@ export const AdminBranchesPage: React.FC = () => {
               <>
                 <div className="p-3 bg-white rounded-xl shadow-md inline-block border border-gray-100">
                   <img
-                    src={branchService.getBranchQRImageUrl(qrBranch!.branch_id)}
+                    src={qrDetails?.qr_preview_url || branchService.getBranchQRImageUrl(qrBranch!.branch_id)}
                     alt={`QR Code for ${qrBranch?.branch_name}`}
                     className="w-48 h-48 object-contain"
                   />
