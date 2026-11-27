@@ -66,13 +66,19 @@ export const AdminDashboardPage: React.FC = () => {
     }
 
     try {
-      const [rRes, bRes, oRes, billsRes, cRes] = await Promise.all([
+      const [rSettled, bSettled, oSettled, billsSettled, cSettled] = await Promise.allSettled([
         dispatch(fetchRestaurants({ page: 1, limit: 100 })).unwrap(),
         dispatch(fetchBranches({ limit: 100 })).unwrap(),
         dispatch(fetchOrders({ limit: 100 })).unwrap(),
         dispatch(fetchBills({ limit: 100 })).unwrap(),
         dispatch(fetchCustomers()).unwrap(),
       ]);
+
+      const rRes = rSettled.status === 'fulfilled' ? rSettled.value : { data: [], total: 0 };
+      const bRes = bSettled.status === 'fulfilled' ? bSettled.value : { data: [], total: 0 };
+      const oRes = oSettled.status === 'fulfilled' ? oSettled.value : { data: [], total: 0 };
+      const billsRes = billsSettled.status === 'fulfilled' ? billsSettled.value : { data: [], total: 0 };
+      const cRes = cSettled.status === 'fulfilled' ? cSettled.value : [];
 
       // Normalize accurate record counts across backend pagination metadata and response arrays
       const restCount =
@@ -87,7 +93,7 @@ export const AdminDashboardPage: React.FC = () => {
       setTotalRestaurants(restCount);
       setTotalBranches(branchCount);
       setTotalOrders(orderCount);
-      setTotalCustomers(cRes.length);
+      setTotalCustomers(Array.isArray(cRes) ? cRes.length : 0);
 
       // 1. Dynamic Total Revenue:
       // Orders that are active and not cancelled contribute directly to operational revenue.
