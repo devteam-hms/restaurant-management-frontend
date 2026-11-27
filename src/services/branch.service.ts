@@ -33,6 +33,36 @@ export function saveStoredBranchQR(branchId: string, details: BranchQRDetails): 
   } catch {}
 }
 
+export function resolveQRImageUrl(url?: string | null, branchId?: string, menuUrl?: string | null): string {
+  const fallbackUrl = menuUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(menuUrl)}`
+    : '';
+
+  const trimmed = String(url || '').trim();
+
+  // If already absolute or data URI
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+  const serverHost = apiBase.replace(/\/api\/v1\/?$/, '');
+
+  if (trimmed.startsWith('/')) {
+    return `${serverHost}${trimmed}`;
+  }
+
+  if (branchId) {
+    const stored = getStoredBranchQR(branchId);
+    if (stored?.qr_preview_url) {
+      return resolveQRImageUrl(stored.qr_preview_url, undefined, menuUrl);
+    }
+    return `${apiBase}/branches/${encodeURIComponent(branchId)}/qr/preview`;
+  }
+
+  return fallbackUrl;
+}
+
 export function getStoredPhones(): Record<string, string> {
   const result: Record<string, string> = { ...inMemoryPhoneCache };
   if (typeof window !== 'undefined') {
@@ -498,7 +528,7 @@ export const branchService = {
   getBranchQRImageUrl(branchId: string): string {
     const stored = getStoredBranchQR(branchId);
     if (stored?.qr_preview_url) {
-      return stored.qr_preview_url;
+      return resolveQRImageUrl(stored.qr_preview_url, branchId, stored.menu_url);
     }
     return `${API_BASE_URL}/branches/${encodeURIComponent(branchId)}/qr/preview`;
   },

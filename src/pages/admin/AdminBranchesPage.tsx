@@ -25,7 +25,7 @@ import {
 } from '@/store/slices/branchSlice';
 import { fetchRestaurants } from '@/store/slices/restaurantSlice';
 import { BranchItem, BranchQRDetails } from '@/types/branch';
-import { branchService } from '@/services/branch.service';
+import { branchService, resolveQRImageUrl } from '@/services/branch.service';
 import { AdminTopbar } from '@/components/layout/AdminTopbar';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
@@ -477,9 +477,17 @@ export const AdminBranchesPage: React.FC = () => {
               <>
                 <div className="p-3 bg-white rounded-xl shadow-md inline-block border border-gray-100">
                   <img
-                    src={qrDetails?.qr_preview_url || branchService.getBranchQRImageUrl(qrBranch!.branch_id)}
+                    src={resolveQRImageUrl(qrDetails?.qr_preview_url, qrBranch?.branch_id, qrDetails?.menu_url)}
                     alt={`QR Code for ${qrBranch?.branch_name}`}
                     className="w-48 h-48 object-contain"
+                    onError={(e) => {
+                      if (qrDetails?.menu_url) {
+                        const fallback = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrDetails.menu_url)}`;
+                        if ((e.target as HTMLImageElement).src !== fallback) {
+                          (e.target as HTMLImageElement).src = fallback;
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <div className="space-y-1">

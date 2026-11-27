@@ -15,7 +15,7 @@ import {
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchRestaurants } from '@/store/slices/restaurantSlice';
 import { fetchBranches } from '@/store/slices/branchSlice';
-import { branchService } from '@/services/branch.service';
+import { branchService, resolveQRImageUrl } from '@/services/branch.service';
 import { BranchQRDetails } from '@/types/branch';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -151,9 +151,11 @@ export const BranchQRManagerCard: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const qrImageUrl = qrDetails?.qr_preview_url || (selectedBranchId
-    ? branchService.getBranchQRImageUrl(selectedBranchId)
-    : '');
+  const qrImageUrl = resolveQRImageUrl(
+    qrDetails?.qr_preview_url,
+    selectedBranchId,
+    qrDetails?.menu_url
+  );
 
   const isQrActive = Boolean(qrDetails?.public_menu_code);
 
@@ -362,6 +364,14 @@ export const BranchQRManagerCard: React.FC = () => {
                       src={qrImageUrl}
                       alt={`QR Code for ${selectedBranch.branch_name}`}
                       className="w-44 h-44 object-contain rounded"
+                      onError={(e) => {
+                        if (qrDetails?.menu_url) {
+                          const fallback = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrDetails.menu_url)}`;
+                          if ((e.target as HTMLImageElement).src !== fallback) {
+                            (e.target as HTMLImageElement).src = fallback;
+                          }
+                        }
+                      }}
                     />
                   </div>
                   <div>
